@@ -1,0 +1,24 @@
+/* ===== Токены 4ONE (v5, редакция аудита 2026-10-26): те же, что в игре. Меняйте здесь, не в компонентах. ===== */
+:root{
+  /* поверхности: графит с баклажанным оттенком */
+  --bg:#100e12;--p1:#1b1820;--p2:#221f29;--p3:#2c2934;--p4:#37343f;--p5:#47444f;
+  /* текст: 4 уровня */
+  --t1:#f4f1f6;--t2:rgba(244,241,246,.74);--t3:rgba(244,241,246,.58);--t4:rgba(244,241,246,.40);
+  /* акцент (цвет HUD по умолчанию); меняется на <html data-accent="…"> */
+  --ac:#b9a3ff;--ac2:#7d63e8;--btn-a:#7d63e8;--btn-b:#6247c9;--ac-on:#150f26;--ac-soft:rgba(185,163,255,.14);
+  --grad:linear-gradient(90deg,var(--ac2),var(--ac));
+  /* смысловые цвета: только для статусов */
+  --ok:#8fc2a8;--ok-btn-a:#5fcf86;--ok-btn-b:#2f9f5c;--no:#c8566f;--no-btn-a:#ee5f78;--no-btn-b:#c63f5a;--warn:#dcc49c;
+  /* валюты: доллар — жемчуг, 4Coin — шампань (везде одинаково) */
+  --pearl:#e6e0ec;--champ:#dcc49c;
+  --line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.13);--glass:rgba(255,255,255,.06);
+  --sans:'Onest',system-ui,-apple-system,'Segoe UI',sans-serif;
+  /* ровно три радиуса: мелкие / кнопки и поля / окна и карточки */
+  --r1:6px;--r2:10px;--r3:16px;
+  /* движение: ease-out без пружин; окно 220/140, подсветка 100–150, вкладки 180 */
+  --ease:cubic-bezier(.22,1,.36,1);--d-in:.22s;--d-out:.14s;--d-fast:.12s;--d-tab:.18s;
+  color-scheme:dark;
+}
+html[data-accent=mint]{--ac:#9fd4b4;--ac2:#4f9a78;--btn-a:#4f9a78;--btn-b:#3a7a5d;--ac-on:#0c1a13;--ac-soft:rgba(159,212,180,.14)}
+html[data-accent=rose]{--ac:#f0a0b4;--ac2:#c25573;--btn-a:#c25573;--btn-b:#9f3f5a;--ac-on:#26101a;--ac-soft:rgba(240,160,180,.14)}
+html[data-accent=sky]{--ac:#9cc4f5;--ac2:#4a7fd0;--btn-a:#4a7fd0;--btn-b:#3a63a8;--ac-on:#0d1626;--ac-soft:rgba(156,196,245,.14)}

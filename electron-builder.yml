@@ -1,0 +1,37 @@
+# Сборка установщика под Windows (NSIS) + автообновление через electron-updater.
+# Лента обновлений: Supabase Storage, бакет launcher-updates, папка launcher-electron/
+# (старая WPF/Velopack-лента лежит в launcher/ — не смешиваем).
+appId: com.4onerp.launcher
+productName: 4ONE Launcher
+copyright: 4ONE RP
+directories:
+  output: dist
+  buildResources: build
+files:
+  - src/**/*
+  - "!src/renderer/**/*.md"
+  - build/icon.png
+  - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: 4ONE-Launcher-Setup-${version}.${ext}
+  # Подпись кода: задайте CSC_LINK / CSC_KEY_PASSWORD (или win.certificateFile).
+  # Без подписи SmartScreen покажет предупреждение.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: 4ONE Launcher
+  deleteAppDataOnUninstall: false
+protocols:
+  - name: 4ONE Launcher
+    schemes: [gta4one]
+publish:
+  provider: generic
+  url: https://cdn.4onerp.com/launcher/   # TODO(cdn-url): боевой адрес статики

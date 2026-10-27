@@ -1,0 +1,69 @@
+/* ===== Аккаунт и настройки: боковое меню + панели. Панели не пересоздаются — вкладка не дёргает прокрутку. ===== */
+.pg{display:flex;flex-direction:column;gap:16px;padding-bottom:6px}
+.sub{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:5px;margin:0 0 0;border-radius:var(--r2);border:1px solid rgba(255,255,255,.06);background:#1a1721;overflow-x:auto;scrollbar-width:none;align-self:flex-start;max-width:100%}
+.sub::-webkit-scrollbar{display:none}
+.sb{position:relative;flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:0;border-radius:var(--r1);background:none;color:var(--t3);font:600 13.5px var(--sans);white-space:nowrap;transition:background-color var(--d-fast),color var(--d-fast)}
+.sb svg.i{width:17px;height:17px;flex:none}
+.sb:hover{background:var(--glass);color:var(--t1)}
+.sb[aria-selected=true]{color:var(--t1);background:color-mix(in srgb,var(--ac2) 30%,var(--p2))}
+.sb[aria-selected=true] svg.i{color:var(--ac)}
+.sb:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
+.panes{min-width:0}
+.pane.pin{animation:rin .22s var(--ease) both}
+.stack{display:flex;flex-direction:column;gap:14px}
+.stack > *{flex:none}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.acts{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.kvs{padding-top:8px;padding-bottom:8px}
+
+/* профиль */
+.prof-h{display:flex;align-items:center;gap:20px;padding:24px;flex-wrap:wrap}
+.ph-t{flex:1;min-width:200px}
+.ph-t h2{font:700 clamp(20px,2.4cqw,26px)/1.15 var(--sans);letter-spacing:-.01em;overflow-wrap:anywhere}
+.ph-s{margin-top:8px;display:flex;align-items:center;gap:10px;color:var(--t3);font-size:13px;flex-wrap:wrap}
+.ph-bal{text-align:right;background:none;border:0;padding:8px 10px;margin:-8px -10px;border-radius:var(--r2);transition:background-color var(--d-fast)}
+.ph-bal:hover{background:var(--glass)}
+.ph-bal small{display:block;color:var(--t3);font-size:12px;margin-bottom:4px}
+.ph-bal .c4{font:700 26px/1 var(--sans)}
+.c4{color:var(--champ)}
+.usd{color:var(--pearl)}
+
+/* иконка в строке списка */
+.ico-s{width:38px;height:38px;border-radius:var(--r1);display:grid;place-items:center;flex:none;background:var(--ac-soft);color:var(--ac)}
+.ico-s svg.i{width:18px;height:18px}
+.ico-s.bad{background:color-mix(in srgb,var(--no) 16%,transparent);color:#f08aa0}
+.txtb{font:700 12px var(--sans);letter-spacing:.03em}
+.when{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.when small{color:var(--t3);font-size:12px}
+.srow .st b .bdg{margin-left:8px;vertical-align:1px}
+
+/* кошелёк */
+.wal-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:20px;padding:24px}
+.wal-h small{color:var(--t3);font-size:12.5px}
+.wal-n .c4{display:block;margin-top:6px;font:700 clamp(30px,4cqw,44px)/1 var(--sans)}
+.wal-s{display:flex;align-items:baseline;gap:14px;margin-top:10px;font-weight:700;font-size:13px}
+.up{color:var(--ok)}.dn{color:#f08aa0}
+.amt{font-size:14px;white-space:nowrap}
+.amt small{font-size:11.5px;color:var(--t3);font-weight:700}
+
+/* персонажи */
+.chars{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:14px}
+.ch-top{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.ch-top .st{flex:1;min-width:0}
+.ch-top .st b{display:block;font-size:15px}
+.ch-top .st small{color:var(--t3);font-size:12.5px}
+
+/* очень узко: у вкладок остаются только иконки */
+@container view (max-width:520px){.sb span{display:none}.sb{padding:0 14px}.sub{align-self:stretch;justify-content:space-around}}
+
+/* профиль: окно с ролью */
+.pm{display:flex;align-items:center;gap:14px}
+.pm-t{min-width:0}.pm-t b{display:block;font:700 17px/1.2 var(--sans);overflow-wrap:anywhere}.pm-t small{display:block;margin-top:3px;color:var(--t3);font-size:13px}
+.pm-role{margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pm-role small{color:var(--t3);font-size:13px}
+.pm-bal{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;color:var(--t3);font-size:13px}
+.pm-bal .c4{font:700 18px/1 var(--sans);color:var(--champ)}
+/* вкладка администрирования */
+.adm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:14px;margin-top:14px}
+.adm-card p{margin:0 0 12px;color:var(--t2);font-size:13.5px;line-height:1.5}
+.adm-card.lock{opacity:.62}
+.adm-card .soon{display:block;margin-top:10px;color:var(--t3);font-size:12px}

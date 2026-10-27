@@ -1,0 +1,106 @@
+/* ===== Общие стили экранов: вход, новости, коды, строки настроек. Главная — home.css, аккаунт/настройки — account.css. ===== */
+.sp{flex:1}
+.scr-head > div{min-width:0}
+.hint{color:var(--t3);font-size:12.5px;line-height:1.5}
+.pad-x{padding-left:20px;padding-right:20px}
+.tone-ok{color:var(--ok)}.tone-warn{color:var(--warn)}.tone-err{color:#f08aa0}
+.tx3 b,.tx3{color:var(--t3)}
+.link{background:none;border:0;padding:0;color:var(--ac);font:inherit;font-weight:700}
+.bt.g.dng{background:color-mix(in srgb,var(--no) 14%,var(--p3));color:#f08aa0}
+.bt.g.dng:hover{background:color-mix(in srgb,var(--no) 26%,var(--p3));color:#ffb3c2}
+.field-hint{margin:0;text-align:center;font-size:12px;color:var(--t3)}
+.lg-lang{position:absolute;top:14px;right:16px}
+
+/* ---------- вход ---------- */
+#app[data-screen=login] .rail{display:none}
+#app[data-screen=login] .shell{padding:0 16px 16px}
+.login{position:absolute;inset:0;display:flex;overflow-y:auto;overflow-x:hidden;padding:10px 4px;scrollbar-width:thin}
+.login-card{margin:auto;flex:none;width:min(460px,100%);padding:30px 32px 26px;display:flex;flex-direction:column;gap:20px}
+.lg-logo{display:flex;justify-content:center}
+.lg-logo img{width:196px;height:auto;display:block}
+.lg-head{text-align:center}
+.lg-head h1{font:700 24px/1.15 var(--sans);letter-spacing:-.01em}
+.lg-head p{margin-top:8px;color:var(--t3);font-size:13.5px;line-height:1.5}
+.lg-note{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--r2);background:color-mix(in srgb,var(--warn) 13%,#1b1820);border:1px solid color-mix(in srgb,var(--warn) 34%,transparent);font-size:13px;color:var(--t1);line-height:1.45}
+.lg-note svg.i{color:var(--warn);margin-top:1px}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.steps li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r2);background:color-mix(in srgb,var(--ac2) 9%,var(--p2));border:1px solid var(--line)}
+.steps .n{width:26px;height:26px;border-radius:var(--r1);display:grid;place-items:center;flex:none;background:var(--ac-soft);color:var(--ac);font-weight:700;font-size:13px}
+.steps .st{flex:1;min-width:0}
+.steps .st b{display:block;font-size:13.5px}
+.steps .st small{display:block;margin-top:2px;color:var(--t3);font-size:12px}
+.lg-form{display:flex;flex-direction:column;gap:10px}
+.lg-form .field-msg{min-height:18px;text-align:center}
+.lg-foot{text-align:center;color:var(--t3);font-size:13px}
+.lg-demo{text-align:center;color:var(--t3);font-size:12px}
+.lg-wait{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;padding:6px 0 2px}
+.lg-wait b{font-size:14px}.lg-wait small{color:var(--t3);font-size:12.5px;line-height:1.45}
+.lg-wait .pb{width:100%}.lg-wait .pb .ind{display:block;width:38%;height:100%;border-radius:inherit;background:var(--ac);animation:lg-ind 1.4s var(--ease) infinite}
+@keyframes lg-ind{from{transform:translateX(-100%)}to{transform:translateX(260%)}}
+.lg-row{display:flex;gap:10px}
+@media (prefers-reduced-motion:reduce){.lg-wait .pb .ind{animation:none;width:100%;opacity:.5}}
+.lg-demo b{color:var(--t2);letter-spacing:.06em}
+
+
+/* ---------- новости ---------- */
+.nw-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
+.nw-tools .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.nw-find{position:relative;width:min(240px,100%);flex:none}
+.nw-find svg.i{position:absolute;left:12px;top:50%;width:16px;height:16px;margin-top:-8px;color:var(--t3);pointer-events:none}
+.nw-find .inp{height:34px;padding-left:36px;font-size:13px;border-radius:var(--r2)}
+.news-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,270px),1fr));gap:14px}
+.ncd{position:relative;display:flex;flex-direction:column;text-align:left;padding:0;overflow:hidden;color:var(--t1);border-radius:var(--r3);border:1px solid rgba(255,255,255,.06);background:linear-gradient(165deg,color-mix(in srgb,var(--cc) 9%,#1d1a25),#16131b);transition:border-color .2s,transform .25s var(--ease)}
+.ncd:hover{border-color:color-mix(in srgb,var(--cc) 46%,transparent);transform:translateY(-3px)}
+.ncd:active{transform:translateY(-1px)}
+.ncd:focus-visible{outline:2px solid var(--cc);outline-offset:2px}
+.ncd-pic{position:relative;aspect-ratio:16/9;overflow:hidden;display:grid;place-items:center;background:radial-gradient(80% 120% at 80% 0,color-mix(in srgb,var(--cc) 30%,transparent),transparent 70%),color-mix(in srgb,var(--cc) 10%,#1a1722);color:var(--cc)}
+.ncd-pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .6s var(--ease)}
+.ncd:hover .ncd-pic img{transform:scale(1.05)}
+.ncd-pic > svg.i{width:34px;height:34px;opacity:.9}
+.ncd-pic .bdg{position:absolute;left:10px;top:10px;border-radius:5px;--tone:var(--cc);background:color-mix(in srgb,#120f17 78%,var(--cc));color:#fff}
+.ncd-b{display:flex;flex-direction:column;gap:6px;padding:14px 16px 16px}
+.ncd-b b{font-size:15px;line-height:1.3;text-wrap:balance}
+.ncd-b .nr-x{color:var(--t3);font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ncd-b .nmeta{display:flex;align-items:center;gap:6px}
+.ncd.big{grid-column:span 2}
+.ncd.big .ncd-pic{aspect-ratio:3/1}
+.ncd.big .ncd-b b{font-size:19px}
+.ncd.new .ncd-b .nmeta:after{content:"";width:7px;height:7px;border-radius:50%;background:var(--ac);box-shadow:0 0 8px var(--ac)}
+@container view (max-width:640px){.ncd.big{grid-column:auto}.ncd.big .ncd-pic{aspect-ratio:16/9}}
+
+/* ---------- коды ---------- */
+.codes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-content:start}
+@container view (max-width:760px){.codes{grid-template-columns:minmax(0,1fr)}}
+.cd-form{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:8px}
+.cd-form .inp{flex:1 1 200px;min-width:0;height:46px;font:700 16px var(--sans);letter-spacing:.14em;text-transform:uppercase;text-align:left}
+.cd-form .bt{height:46px;flex:none}
+.cd-form .inp::placeholder{letter-spacing:.01em;text-transform:none;font-weight:600;color:var(--t3)}
+.codes .field-msg{min-height:20px;margin-bottom:2px}
+.codes .hint.pad{padding-top:8px}
+.hist{display:flex;flex-direction:column;padding:8px}
+.hrow{display:flex;align-items:center;gap:12px;padding:10px;border-radius:var(--r1)}
+.hrow + .hrow{border-top:1px solid var(--line)}
+.hi{width:34px;height:34px;border-radius:var(--r1);display:grid;place-items:center;flex:none;background:var(--ac-soft);color:var(--ac)}
+.ht{flex:1;min-width:0;display:flex;flex-direction:column}
+.ht b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ht small{font-size:12px;color:var(--t3)}
+.hr{font-weight:700;font-size:13px;color:var(--t2);white-space:nowrap}
+.hr.c4{color:var(--champ)}
+
+/* ---------- строки настроек (используются в настройках и аккаунте) ---------- */
+.srow{display:flex;align-items:center;gap:18px;padding:14px 20px;min-height:64px}
+.srow + .srow{border-top:1px solid var(--line)}
+.srow .st{flex:1;min-width:0}
+.srow .st b{display:block;font-size:14px}
+.srow .st small{display:block;margin-top:3px;color:var(--t3);font-size:12.5px;line-height:1.4;overflow-wrap:anywhere}
+.srow .st small.path{font-family:Consolas,'Cascadia Mono',monospace;font-size:12px;word-break:break-all}
+.sact{display:flex;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:flex;flex-wrap:wrap;gap:2px;padding:2px;border-radius:var(--r2);background:var(--p3)}
+.seg button{height:30px;padding:0 12px;border-radius:var(--r1);border:0;background:transparent;color:var(--t3);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;transition:background-color var(--d-fast),color var(--d-fast)}
+.seg button:hover{color:var(--t1)}
+.seg button[aria-checked=true]{background:var(--p5);color:var(--t1)}
+.acc{display:flex;gap:10px}
+.acc button{width:28px;height:28px;border-radius:50%;border:2px solid transparent;background:var(--c);padding:0;box-shadow:inset 0 0 0 2px #17141d;transition:border-color var(--d-fast),transform var(--d-fast)}
+.acc button:hover{transform:scale(1.08)}
+.acc button[aria-checked=true]{border-color:#fff}
+@container view (max-width:560px){.srow{flex-wrap:wrap;gap:12px}.srow .st{flex-basis:100%}.sact{justify-content:flex-start}}

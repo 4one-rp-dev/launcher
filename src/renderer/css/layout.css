@@ -1,0 +1,110 @@
+/* ===== Каркас окна: титлбар, узкая панель иконок, область экрана =====
+   Масштаб: --z выставляет main.js (авто по размеру окна или из настроек). .app занимает всё окно и масштабируется zoom'ом,
+   поэтому любые размеры внутри — в «css-пикселях» после масштаба. Адаптив — контейнерные запросы (@container app / view). */
+:root{--z:1}
+.app{position:fixed;left:0;top:0;width:calc(100vw / var(--z));height:calc(100vh / var(--z));zoom:var(--z);display:flex;flex-direction:column;background:var(--bg);border:1px solid rgba(255,255,255,.07);overflow:hidden;container:app / inline-size}
+.titlebar{height:38px;flex:none;display:flex;align-items:center;justify-content:space-between;-webkit-app-region:drag;padding-left:18px;position:relative;z-index:50}
+.tb-left{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--t3);min-width:0}
+.tb-left .ver{color:var(--t4);font-weight:600;white-space:nowrap}
+.net{display:inline-flex;align-items:center;gap:8px;font-weight:700;white-space:nowrap}
+.net i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.net[data-state=off] i{background:var(--no)}
+.net[data-state=off] b{color:#f08aa0}
+.tb-right{display:flex;align-items:center;height:100%;gap:6px;-webkit-app-region:no-drag}
+.tb-win{display:flex;height:100%}
+.wb{width:46px;height:100%;border:0;background:none;color:var(--t3);display:grid;place-items:center;transition:background-color var(--d-fast),color var(--d-fast)}
+.wb svg.i{width:14px;height:14px;stroke-width:1.5}
+.wb:hover{background:rgba(255,255,255,.08);color:var(--t1)}
+.wb:active{background:rgba(255,255,255,.12)}
+.wb.close:hover{background:#c63f5a;color:#fff}
+.wb.close:active{background:#a8344c}
+.wb:focus-visible{outline:2px solid var(--ac);outline-offset:-3px}
+
+.banner-slot{flex:none;padding:0 14px}
+.banner{display:flex;align-items:center;gap:14px;margin:0 0 12px;padding:10px 14px;border-radius:var(--r2);border:1px solid color-mix(in srgb,var(--tone,var(--ac)) 34%,transparent);background:color-mix(in srgb,var(--tone,var(--ac)) 13%,#1b1820);font-size:13.5px;font-weight:600;animation:rin .24s var(--ease) both}
+.banner svg.i{color:var(--tone,var(--ac))}
+.banner .grow{flex:1;min-width:0;color:var(--t1)}
+.banner .grow small{display:block;font-weight:500;color:var(--t3);font-size:12.5px}
+.banner.warn{--tone:var(--warn)}.banner.err{--tone:var(--no)}
+
+.shell{flex:1;min-height:0;display:flex;gap:14px;padding:0 14px 14px}
+.shell[hidden]{display:none}
+
+/* Боковая панель (как в Majestic): логотип сверху, разделы строками, снизу карточка профиля + шестерёнка.
+   Ширина ≥1000px — с подписями; уже — только иконки (подпись во всплывающей подсказке); <760px — полоса снизу. */
+.rail{position:relative;width:232px;flex:none;display:flex;flex-direction:column;gap:4px;padding:16px 12px 12px;border-radius:var(--r3);border:1px solid rgba(255,255,255,.06);
+  background:radial-gradient(220px 260px at 0 0,color-mix(in srgb,var(--ac2) 18%,transparent),transparent 70%),linear-gradient(180deg,#1c1822,#15121a)}
+.rail .brand{display:block;height:auto;object-fit:contain;margin:2px 0 18px 6px}
+.rail .brand.w{width:138px;aspect-ratio:1037/280}
+.rail .brand.m{display:none;width:44px;aspect-ratio:406/280;margin:4px auto 16px}
+.rail .grow{flex:1;min-height:8px}
+.rail-ind{position:absolute;left:0;top:0;width:3px;height:22px;border-radius:0 3px 3px 0;background:var(--ac);box-shadow:0 0 14px var(--ac);transform:translateY(var(--y,0));transition:transform .32s var(--ease),opacity .2s;opacity:0}
+.rail-ind.on{opacity:1}
+.nv{position:relative;display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 12px;border-radius:var(--r2);border:0;background:none;color:var(--t3);font:600 14px var(--sans);text-align:left;white-space:nowrap;transition:background-color var(--d-fast),color var(--d-fast),transform .08s}
+.nv svg.i{width:20px;height:20px;flex:none;transition:transform .2s var(--ease)}
+.nv .lb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nv:hover{background:var(--glass);color:var(--t1)}
+.nv:hover svg.i{transform:scale(1.08)}
+.nv:active{transform:scale(.98)}
+.nv[aria-current=page]{color:var(--t1);background:color-mix(in srgb,var(--ac2) 26%,var(--p2))}
+.nv[aria-current=page] svg.i{color:var(--ac)}
+.nv .bd{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--ac2);color:#fff;font:700 11.5px/20px var(--sans);text-align:center}
+.nv .bd[hidden]{display:none}
+.nv:focus-visible,.acct:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
+/* низ: профиль + настройки */
+.me{display:flex;align-items:center;gap:6px;margin-top:6px;padding:6px;border-radius:var(--r2);border:1px solid var(--line);background:color-mix(in srgb,var(--ac2) 8%,rgba(255,255,255,.02))}
+.acct{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:4px 6px 4px 4px;border:0;border-radius:var(--r1);background:none;text-align:left;color:var(--t1);transition:background-color var(--d-fast)}
+.acct:hover{background:var(--glass)}
+.acct .avatar{width:38px;height:38px;border-radius:var(--r2);font-size:15px;transition:box-shadow .2s}
+.acct[aria-current=page] .avatar{box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 0 0 2px var(--ac)}
+.acct .mt{min-width:0;display:flex;flex-direction:column;gap:2px}
+.acct .mt b{font:600 13.5px/1.2 var(--sans);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct .mt small{font:600 12px/1.2 var(--sans);color:var(--champ);white-space:nowrap}
+.gear{flex:none;width:38px;height:38px;padding:0;justify-content:center;gap:0}
+.gear svg.i{width:19px;height:19px}
+.gear:hover svg.i{transform:rotate(45deg)}
+.nv[data-tip]:after,.acct[data-tip]:after{display:none}
+@container app (max-width:1000px){
+  .rail{width:72px;align-items:center;padding:14px 0 12px;gap:6px}
+  .rail .brand.w{display:none}.rail .brand.m{display:block}
+  .nv{width:48px;height:48px;padding:0;justify-content:center}
+  .nv svg.i{width:22px;height:22px}
+  .nv .lb{display:none}
+  .nv .bd{position:absolute;right:2px;top:2px;min-width:17px;height:17px;padding:0 4px;font-size:10.5px;line-height:17px;box-shadow:0 0 0 2px #19151f}
+  .rail-ind{margin-top:0}
+  .me{flex-direction:column;border:0;background:none;padding:0;gap:4px}
+  .acct{flex:none;width:56px;flex-direction:column;gap:4px;padding:5px 0 4px;justify-content:center}
+  .acct .avatar{width:40px;height:40px}
+  .acct .mt b,.acct .mt .u{display:none}
+  .acct .mt{align-items:center}
+  .acct .mt small{font-size:11px}
+  .gear{width:48px;height:48px}
+  .nv[data-tip]:after,.acct[data-tip]:after{display:block;content:attr(data-tip);position:absolute;left:calc(100% + 14px);top:50%;transform:translate(-6px,-50%);opacity:0;pointer-events:none;background:#2a2633;border:1px solid var(--line2);padding:6px 10px;border-radius:var(--r1);font:600 12.5px var(--sans);color:var(--t1);white-space:nowrap;z-index:60;box-shadow:0 10px 24px -8px rgba(0,0,0,.7);transition:opacity .14s,transform .18s var(--ease)}
+  .nv:hover:after,.nv:focus-visible:after,.acct:hover:after,.acct:focus-visible:after{opacity:1;transform:translate(0,-50%)}
+}
+.avatar{width:40px;height:40px;border-radius:var(--r2);display:grid;place-items:center;flex:none;background:linear-gradient(145deg,var(--btn-a),var(--btn-b));color:#fff;font:700 16px var(--sans);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.avatar.lg{width:76px;height:76px;font-size:32px;border-radius:var(--r3)}
+
+.view{flex:1;min-width:0;min-height:0;position:relative;outline:0;container:view / inline-size}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--ac2) transparent;padding-right:2px}
+.screen::-webkit-scrollbar{width:6px}
+.screen::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--ac),var(--ac2));border-radius:3px}
+.screen > *{flex:none}
+.screen.enter{animation:rin .24s var(--ease) both}
+.scr-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:6px 4px 16px}
+.scr-head h1{font:700 26px/1.1 var(--sans);letter-spacing:-.01em}
+.scr-head p{margin-top:6px;color:var(--t3);font-size:13.5px}
+.scr-body{min-height:0}
+.tb-on{display:none}
+
+/* Узкое окно: панель уходит вниз полосой */
+@container app (max-width:760px){
+  .acct .mt{display:none}
+  .shell{flex-direction:column-reverse;gap:10px}
+  .rail{width:auto;height:62px;flex-direction:row;justify-content:space-around;align-items:center;padding:0 8px;gap:2px}
+  .rail .brand,.rail .grow{display:none}
+  .me{display:contents}
+  .rail-ind{left:0;top:0;width:26px;height:3px;margin:0;border-radius:0 0 3px 3px;transform:translateX(var(--x,0))}
+  .nv[data-tip]:after,.acct[data-tip]:after{display:none}
+  }
+}

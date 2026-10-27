@@ -1,0 +1,128 @@
+/* ===== Главная: выбранный сервер, сетка серверов, новости. Цвет сервера — переменная --sc.
+   Анимации — transform/opacity; ширина — только у .pb. ===== */
+.home{min-height:100%;display:grid;grid-template-columns:minmax(0,1fr) clamp(280px,27cqw,420px);gap:14px;align-items:stretch}
+.hm-main{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sec-h{display:flex;align-items:center;gap:10px;padding:0 2px 10px;min-height:36px}
+.sec-h h2{font:700 15px/1 var(--sans);letter-spacing:.01em}
+.sec-h .cnt{min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:var(--glass);color:var(--t3);font:700 11.5px/20px var(--sans);text-align:center}
+.sec-h .sec-on{font-size:12.5px}
+.sec-h .sp{flex:1}
+
+/* --- герой --- */
+.hero{position:relative;flex:1 1 330px;min-height:310px;border-radius:var(--r3);overflow:hidden;isolation:isolate;border:1px solid rgba(255,255,255,.07);background:#17141d;box-shadow:0 18px 48px -22px rgba(0,0,0,.7)}
+.hero-glow{position:absolute;inset:0;z-index:-1;opacity:1;transition:opacity .6s ease;
+  background:radial-gradient(80% 110% at 92% 0,color-mix(in srgb,var(--sc) 36%,transparent),transparent 68%),
+             radial-gradient(60% 90% at 0 100%,color-mix(in srgb,var(--sc) 15%,transparent),transparent 72%),
+             linear-gradient(160deg,color-mix(in srgb,var(--sc) 12%,#1d1a25),#15121b 70%);animation:gin .6s ease both}
+.hero-glow.out{opacity:0}
+.hg{position:absolute;right:-8%;top:-30%;width:62%;aspect-ratio:1;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--sc) 30%,transparent),transparent);transform:translate(var(--px,0),var(--py,0));transition:transform .5s var(--ease);pointer-events:none}
+@keyframes gin{from{opacity:0}}
+.hero-in{position:relative;height:100%;display:flex;flex-direction:column;gap:18px;padding:clamp(20px,3.4cqw,40px)}
+.hero-in.swap > *{animation:hswap .5s var(--ease) both}
+.hero-in.swap > *:nth-child(2){animation-delay:40ms}
+.hero-in.swap > *:nth-child(3){animation-delay:80ms}
+.hero-in.swap > *:nth-child(4){animation-delay:120ms}
+@keyframes hswap{from{opacity:0;transform:translateY(12px)}}
+.hero-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hero-top .sp{flex:1}
+.hero-top .bdg{height:24px}
+.hero-top .bdg svg.i{width:12px;height:12px}
+.hero-top .dot{width:7px;height:7px}
+.hero-mid{margin-top:auto;display:flex;flex-direction:column;gap:12px;min-width:0}
+.hero-name{font:700 clamp(34px,6cqw,72px)/1 var(--sans);letter-spacing:-.025em;text-wrap:balance;overflow-wrap:anywhere}
+.hero-desc{color:var(--t2);font-size:clamp(14px,1.5cqw,17px);line-height:1.55;max-width:52ch}
+.hero-stats{display:flex;flex-wrap:wrap;gap:12px 34px;align-items:flex-end}
+.hs{display:flex;flex-direction:column;gap:3px;min-width:0}
+.hs b{font:700 clamp(22px,2.6cqw,32px)/1.05 var(--sans)}
+.hs b small{font:700 .5em var(--sans);color:var(--t3)}
+.hs span{font-size:12px;color:var(--t3);font-weight:600}
+.hs-on{min-width:150px}
+.hs .pb{height:5px;margin-top:6px;background:rgba(255,255,255,.12)}
+.hs .pb i{background:linear-gradient(90deg,color-mix(in srgb,var(--sc) 70%,#000),var(--sc))}
+.hero-foot{display:flex;flex-direction:column;gap:14px}
+.notice{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:var(--r2);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);background:color-mix(in srgb,var(--warn) 9%,rgba(16,14,18,.55))}
+.notice .pi{width:40px;height:40px;border-radius:var(--r1);display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.notice .pi svg.i{width:20px;height:20px}
+.notice .pt{min-width:0;display:flex;flex-direction:column;gap:2px}
+.notice .pt b{font-size:14px}
+.notice .pt span{font-size:12.5px;color:var(--t3);line-height:1.4}
+.hero-act{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hero-act .bt.xl{min-width:200px}
+.ib[disabled]{opacity:.4;pointer-events:none}
+.hero-st{flex:1;min-width:180px;display:flex;flex-direction:column;gap:8px}
+.hs-text{font-size:13.5px;color:var(--t2)}
+.chip-copy{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:var(--r1);border:1px solid var(--line2);background:rgba(16,14,18,.4);color:var(--t2);font:600 12px var(--sans);transition:background-color var(--d-fast),color var(--d-fast)}
+.chip-copy:hover{background:rgba(255,255,255,.12);color:var(--t1)}
+.chip-copy svg.i{width:13px;height:13px}
+/* кнопка «Играть» в готовом состоянии мягко «дышит» ореолом (opacity) */
+.bt.play{position:relative}
+.bt.play.idle:after{content:"";position:absolute;inset:-5px;border-radius:calc(var(--r2) + 5px);border:2px solid var(--ac);opacity:0;pointer-events:none;animation:ring 2.8s ease-out infinite}
+@keyframes ring{0%{opacity:.55;transform:scale(.97)}70%,100%{opacity:0;transform:scale(1.06)}}
+.bt.play.busy{min-width:200px}
+
+/* --- карточки серверов --- */
+.srv-sec{min-width:0}
+.srv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:12px}
+.sc{position:relative;display:flex;flex-direction:column;gap:10px;text-align:left;padding:15px 16px 16px;border-radius:var(--r2);border:1px solid var(--line);background:var(--p2);color:var(--t1);overflow:hidden;isolation:isolate;min-width:0;
+  transition:border-color .18s,transform .18s var(--ease),background-color .18s}
+.sc:before{content:"";position:absolute;left:0;top:0;width:240px;height:240px;margin:-120px 0 0 -120px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--sc) 34%,transparent),transparent);opacity:0;transform:translate(var(--mx,60%),var(--my,40%));transition:opacity .25s;pointer-events:none;z-index:-1}
+.sc:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--sc) 42%,transparent)}
+.sc:hover:before{opacity:1}
+.sc:active{transform:translateY(0) scale(.99)}
+.sc[aria-checked=true]{border-color:var(--sc);background:linear-gradient(160deg,color-mix(in srgb,var(--sc) 20%,var(--p2)),var(--p2) 80%)}
+.sc[aria-checked=true]:before{opacity:.8}
+.sc:after{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--sc);box-shadow:0 0 12px var(--sc);transform:scaleY(0);transition:transform .28s var(--ease)}
+.sc[aria-checked=true]:after{transform:scaleY(1)}
+.sc-top{display:flex;align-items:center;gap:9px;min-width:0}
+.sc-top b{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sc-top .bdg{margin-left:auto;flex:none}
+.sc-mid{display:flex;align-items:baseline;gap:4px;min-height:30px}
+.sc-mid b{font:700 24px/1.1 var(--sans)}
+.sc-mid small{font-size:12.5px;color:var(--t3);font-weight:600}
+.sc .pb{height:5px;background:rgba(255,255,255,.1)}
+.sc .pb i{background:linear-gradient(90deg,color-mix(in srgb,var(--sc) 65%,#000),var(--sc))}
+.sc-flag{position:absolute;right:10px;bottom:10px;color:var(--sc);opacity:.9}
+.sc-flag svg.i{width:13px;height:13px}
+.dot.on{animation:pulse 2.4s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 55%,transparent)}70%,100%{box-shadow:0 0 0 7px transparent}}
+.empty.wide{grid-column:1 / -1}
+.empty svg.i{width:24px;height:24px;color:var(--ac)}
+
+/* --- боковая колонка --- */
+.hm-side{display:flex;flex-direction:column;gap:12px;min-width:0;padding:4px 4px 0}
+.nmeta{font-size:11.5px;color:var(--t3);font-weight:600;display:flex;align-items:center;gap:8px}
+/* новости плитками: картинка на всю плитку, текст поверх */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tl{position:relative;display:block;aspect-ratio:4/3;padding:0;overflow:hidden;text-align:left;color:#fff;border-radius:var(--r2);border:1px solid rgba(255,255,255,.07);background:#17141d;isolation:isolate;transition:border-color .2s,transform .25s var(--ease),box-shadow .25s}
+.tl.big{grid-column:1/-1;aspect-ratio:16/9}
+.tl:hover{border-color:color-mix(in srgb,var(--cc) 55%,transparent);transform:translateY(-2px);box-shadow:0 14px 30px -18px color-mix(in srgb,var(--cc) 60%,#000)}
+.tl:active{transform:none}
+.tl:focus-visible{outline:2px solid var(--cc);outline-offset:2px}
+.tl-pic{position:absolute;inset:0;z-index:-2;display:grid;place-items:center;color:color-mix(in srgb,var(--cc) 70%,#fff);background:radial-gradient(90% 120% at 85% 0,color-mix(in srgb,var(--cc) 34%,transparent),transparent 70%),linear-gradient(160deg,color-mix(in srgb,var(--cc) 14%,#1d1a25),#15121b)}
+.tl-pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .6s var(--ease)}
+.tl:hover .tl-pic img{transform:scale(1.06)}
+.tl-pic > svg.i{position:absolute;right:10px;top:9px;width:22px;height:22px;opacity:.55;stroke-width:1.5}
+.tl:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,transparent 30%,rgba(10,8,13,.9));pointer-events:none}
+.tl-tag{position:absolute;left:8px;top:8px;display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;font:600 11px var(--sans);background:color-mix(in srgb,#120f17 72%,var(--cc))}
+.tl-t{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;gap:3px;padding:10px 12px 11px}
+.tl-t small{font-size:11px;color:rgba(255,255,255,.66);font-weight:500}
+.tl-t b{font:700 13px/1.28 var(--sans);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tl.big .tl-t{padding:14px 16px 15px}
+.tl.big .tl-t b{font-size:16px}
+.quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:auto;padding-top:4px}
+.qk{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px 10px;border-radius:var(--r2);border:1px solid var(--line);background:var(--p2);color:var(--t2);font:700 11.5px var(--sans);transition:background-color .15s,color .15s,transform .15s var(--ease),border-color .15s}
+.qk svg.i{width:20px;height:20px;color:var(--ac);transition:transform .2s var(--ease)}
+.qk span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qk:hover{background:color-mix(in srgb,var(--ac2) 18%,var(--p2));color:var(--t1);transform:translateY(-2px);border-color:color-mix(in srgb,var(--ac) 30%,transparent)}
+.qk:hover svg.i{transform:scale(1.12)}
+
+/* --- адаптив: контейнер .view --- */
+@container view (max-width:900px){
+  .home{grid-template-columns:minmax(0,1fr)}
+  .hm-side{padding:0}
+  }
+@container view (max-width:560px){
+  .hero-act .bt.xl{flex:1 1 100%}
+  .hero-st{flex:1 1 100%}
+  .srv-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+}

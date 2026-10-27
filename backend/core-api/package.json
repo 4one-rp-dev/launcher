@@ -1,0 +1,16 @@
+{
+  "name": "4one-core-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Единый API 4ONE RP: OAuth для лаунчера и сайта, роли из игровой БД (MariaDB)",
+  "main": "src/server.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "CORE_STORE=memory node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0"
+  }
+}

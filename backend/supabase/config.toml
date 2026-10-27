@@ -1,0 +1,15 @@
+# Фрагмент supabase/config.toml: функции лаунчера вызываются с anon-ключом, а проверка идёт по токену сессии внутри функции.
+[functions.exchange-launcher-code]
+verify_jwt = false
+[functions.validate-launcher-session]
+verify_jwt = false
+[functions.revoke-launcher-session]
+verify_jwt = false
+[functions.launcher-bootstrap]
+verify_jwt = false
+[functions.redeem-launcher-code]
+verify_jwt = false
+[functions.launcher-codes-history]
+verify_jwt = false
+[functions.issue-launcher-code]
+verify_jwt = false   # JWT пользователя сайта проверяется внутри через auth.getUser

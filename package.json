@@ -1,0 +1,38 @@
+{
+  "name": "4one-launcher",
+  "productName": "4ONE Launcher",
+  "version": "1.0.0",
+  "description": "Лаунчер 4ONE RP: вход по коду с сайта, установка клиента, запуск GTA V",
+  "author": "4ONE RP",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "start:mock": "cross-env L4_MOCK=1 electron .",
+    "dev": "cross-env L4_MOCK=1 L4_DEVTOOLS=1 electron .",
+    "preview": "node tools/preview-server.js",
+    "preview:bundle": "node tools/preview-bundle.js",
+    "test": "node --test test/*.test.js",
+    "shots": "node tools/shots.js",
+    "icons": "node tools/make-icons.js",
+    "dist": "electron-builder --win nsis",
+    "dist:dir": "electron-builder --win --dir",
+    "publish:feed": "node tools/publish-feed.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
+    "cross-env": "^7.0.3",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2",
+    "lucide-static": "^0.468.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
