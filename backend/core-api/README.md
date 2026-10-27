@@ -53,7 +53,7 @@ npm start
 | `POST /v1/internal/servers/<id>/stats` | `{ online, max, status }` от игры или cron, заголовок `X-Internal-Token` (= `CORE_INTERNAL_TOKEN`, от 16 знаков) |
 | `GET /healthz` | живость |
 
-Подключение сайта — **`INTEGRATION.md`**.
+Короткий гайд (подключение, правка данных) — **`DEV_GUIDE.md`**. Подключение сайта — **`INTEGRATION.md`**.
 
 ## Как зачисляются 4Coin
 API **не меняет `accounts.redbucks`**: онлайн-игрок хранит баланс в памяти сервера, и запись в БД он перезатёр бы. Промокод кладёт строку в `core_wallet_tx` (`applied_at IS NULL`), игровой сервер раз в 15 секунд применяет её (gamemod, `Core/CoreRewards.cs`): в сети — через `UpdateData.RedBucks`, не в сети — `redbucks += сумма`. До применения баланс в профиле уже показывается с этой суммой. **Без `CoreRewards` в игре промокоды 4Coin в игру не дойдут.**
