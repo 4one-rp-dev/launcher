@@ -68,7 +68,7 @@ test('адрес возврата: только разрешённые', () => {
 });
 test('конфиг: боевой режим без CORE_SECRET не стартует', () => {
   assert.throws(() => load({ CORE_STORE: 'mysql' }), /CORE_SECRET/);
-  assert.throws(() => load({ CORE_STORE: 'memory', CORE_DB_GAME: 'a;drop' }), /имя БД/);
+  assert.throws(() => load({ CORE_STORE: 'memory', CORE_DB_NAME: 'a;drop' }), /имя БД/);
 });
 
 // ---------- полный поток по HTTP (без сокетов: обработчик вызывается напрямую, тесты не требуют сети)
@@ -94,10 +94,9 @@ async function boot(extra) {
   const store = createMemoryStore({
     accounts: [
       { login: 'marcus', email: 'marcus@example.com', passwordHash: hashPassword('Secret-1', 1000), socialClub: 'MarcusSC', redbucks: 1200, vipLvl: 2, vipDate: '2030-01-01T00:00:00Z', characters: [{ id: 1, name: 'Marcus Reed', level: 7 }] },
-      { login: 'boss', email: 'boss@example.com', passwordHash: hashPassword('Boss-pass', 1000), socialClub: 'BossSC', redbucks: 0 },
+      { login: 'boss', email: 'boss@example.com', passwordHash: hashPassword('Boss-pass', 1000), socialClub: 'BossSC', redbucks: 0, alvl: 5 },
       { login: 'bad', email: 'bad@example.com', passwordHash: hashPassword('x-pass-x', 1000), socialClub: 'BadSC', banned: true },
     ],
-    alvl: { BossSC: 5 },
   });
   HANDLER = createApp({ store, config }).handler;
   return { base: 'http://core.test', store, config, close: async () => { HANDLER = null; } };
@@ -148,7 +147,7 @@ test('вход по почте; администратор получает ро
     assert.equal(p.role.title, 'Администратор 5 уровня'); assert.equal(p.role.rank, 'Старший администратор');
     assert.ok(p.permissions.includes('logs.view') && !p.permissions.includes('project.manage'));
     // уровень меняется в БД — профиль видит сразу, без перелогина
-    await env.store.setAlvl('BossSC', 7);
+    (await env.store.getAccount('boss')).alvl = 7; // уровень изменили в БД (accounts.alvl)
     const p2 = (await (await me(env.base, t.access_token)).json()).data;
     assert.equal(p2.role.alvl, 7); assert.ok(p2.permissions.includes('staff.manage'));
   } finally { await env.close(); }

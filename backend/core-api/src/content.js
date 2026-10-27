@@ -78,10 +78,10 @@ function createMysqlContent(pool) {
   const q = async (sql, params) => (await pool.execute(sql, params))[0];
   return {
     async listServers() {
-      return (await q('SELECT id, name, tag, status, online, max_players, address, version, description, recommended FROM core_servers WHERE published = 1 ORDER BY sort, id', [])).map(server);
+      return (await q('SELECT id, name, tag, `status`, `online`, max_players, address, version, description, recommended FROM core_servers WHERE published = 1 ORDER BY sort, id', [])).map(server);
     },
     async updateServerStats(id, st) {
-      const res = await q('UPDATE core_servers SET online = COALESCE(?, online), max_players = COALESCE(?, max_players), status = COALESCE(?, status) WHERE id = ?',
+      const res = await q('UPDATE core_servers SET `online` = COALESCE(?, `online`), max_players = COALESCE(?, max_players), `status` = COALESCE(?, `status`) WHERE id = ?',
         [st.online ?? null, st.max ?? null, st.status ?? null, id]);
       return res.affectedRows > 0;
     },

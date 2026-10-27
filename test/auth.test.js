@@ -44,12 +44,12 @@ test('администратор: роль «Администратор 5 уро
   assert.strictEqual(p.role, 'Администратор 5 уровня'); assert.strictEqual(p.roleInfo.rank, 'Старший администратор');
   assert.ok(p.permissions.includes('admin.panel') && p.permissions.includes('logs.view') && !p.permissions.includes('project.manage'));
   // уровень снят в игре (alvl = 0) -> следующая проверка профиля делает игроком
-  await w.store.setAlvl('BossSC', 0);
+  (await w.store.getAccount('boss')).alvl = 0;
   const before = w.events.length;
   await w.auth.revalidate();
   assert.strictEqual(w.auth.state().profile.role, 'Игрок'); assert.deepStrictEqual(w.auth.state().profile.permissions, []);
   assert.ok(w.events.length > before, 'интерфейс получил auth:changed');
-  await w.store.setAlvl('BossSC', 8);
+  (await w.store.getAccount('boss')).alvl = 8;
   await w.auth.revalidate();
   assert.strictEqual(w.auth.state().profile.role, 'Администратор 8 уровня');
 });

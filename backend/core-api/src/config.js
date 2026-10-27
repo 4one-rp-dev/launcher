@@ -18,8 +18,16 @@ function load(env = process.env) {
   const secret = env.CORE_SECRET || '';
   if (store === 'mysql' && secret.length < 32) throw new Error('CORE_SECRET: нужна случайная строка от 32 знаков');
   const ident = (v, d) => { const s = v || d; if (!/^[A-Za-z0-9_]{1,64}$/.test(s)) throw new Error(`Недопустимое имя БД: ${s}`); return s; };
-  let clients = DEFAULT_CLIENTS;
+  let clients = { ...DEFAULT_CLIENTS };
   if (env.CORE_CLIENTS) { try { clients = JSON.parse(env.CORE_CLIENTS); } catch (_) { throw new Error('CORE_CLIENTS: некорректный JSON'); } }
+  // Сайт: достаточно перечислить адреса возврата, например
+  // CORE_SITE_REDIRECTS=https://www.4onerp.com/auth/callback,http://localhost:3000/auth/callback
+  const site = String(env.CORE_SITE_REDIRECTS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  for (const u of site) { try { new URL(u); } catch (_) { throw new Error(`CORE_SITE_REDIRECTS: некорректный адрес ${u}`); } }
+  if (site.length) clients['4one-site'] = { name: 'Сайт 4ONE RP', redirectUris: site, loopback: false, trusted: true };
+  // Страницы сайта обращаются к API из браузера (CORS): разрешаем источники адресов возврата и CORE_CORS_ORIGINS
+  const origins = new Set(String(env.CORE_CORS_ORIGINS || '').split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean));
+  for (const c of Object.values(clients)) for (const u of c.redirectUris || []) { try { const x = new URL(u); if (/^https?:$/.test(x.protocol)) origins.add(x.origin); } catch (_) { /* не http(s) */ } }
   return {
     port: Number(env.CORE_PORT) || 8787,
     host: env.CORE_HOST || '127.0.0.1',
@@ -32,10 +40,10 @@ function load(env = process.env) {
       port: Number(env.CORE_DB_PORT) || 3306,
       user: env.CORE_DB_USER || '',
       password: env.CORE_DB_PASSWORD || '',
-      game: ident(env.CORE_DB_GAME, 'ra3_main'),                 // БД геймода: accounts, characters, banned
-      platform: ident(env.CORE_DB_PLATFORM, 'flovmp_server'),    // БД платформы FloV:MP: accounts.alvl
+      name: ident(env.CORE_DB_NAME, 'ra3_main'),                 // единственная БД: игра (accounts, alvl, characters, banned) и core_*
     },
     clients,
+    corsOrigins: [...origins],
     accessTtlSec: 15 * 60,
     refreshTtlSec: 60 * 24 * 3600,
     codeTtlSec: 120,

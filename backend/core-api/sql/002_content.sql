@@ -88,9 +88,12 @@ CREATE TABLE IF NOT EXISTS `core_login_events` (
   KEY `idx_events_login` (`login`, `at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Права пользователя БД для API (дополнение к 001): новые таблицы целиком, кроме core_wallet_tx.applied_at (его ставит игра):
---   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_servers, ra3_main.core_news, ra3_main.core_settings, ra3_main.core_promos,
---         ra3_main.core_promo_redeems, ra3_main.core_login_events TO 'core_api'@'127.0.0.1';
+-- Права пользователя БД для API (дополнение к 001, под root):
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_servers TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_news TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_settings TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_promos TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_promo_redeems TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_login_events TO 'core_api'@'127.0.0.1';
 --   GRANT SELECT, INSERT ON ra3_main.core_wallet_tx TO 'core_api'@'127.0.0.1';
---   GRANT SELECT (redbucks, ExitDate) ON ra3_main.accounts TO 'core_api'@'127.0.0.1';   -- уже входит в SELECT на accounts из 001
--- Игровому пользователю БД: SELECT и UPDATE (applied_at) на core_wallet_tx.
+-- Игровому пользователю БД (redage): SELECT и UPDATE (applied_at) на core_wallet_tx — для Core/CoreRewards.cs.

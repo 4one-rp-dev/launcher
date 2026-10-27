@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Роли проекта. Уровень администратора — одно число alvl (0–8) на аккаунте, его же читает игровой сервер
- * (Core/AdminAuth.cs, таблица accounts платформы FloV:MP). Названия рангов совпадают с Core/AdminRanks.cs.
+ * (Core/AdminAuth.cs, колонка accounts.alvl в игровой БД ra3_main; БД платформы FloV:MP не участвует). Названия рангов совпадают с Core/AdminRanks.cs.
  */
 const MAX = 8;
 

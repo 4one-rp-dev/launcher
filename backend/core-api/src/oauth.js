@@ -141,8 +141,8 @@ function createOAuth({ store, config, now = () => new Date() }) {
   }
 
   async function profile(account) {
-    const [alvl, characters, banned, pending] = await Promise.all([store.getAlvl(account.socialClub), store.listCharacters(account), store.isBanned(account), store.pendingCoins(account.login)]);
-    const role = roles.describe(alvl);
+    const [characters, banned, pending] = await Promise.all([store.listCharacters(account), store.isBanned(account), store.pendingCoins(account.login)]);
+    const role = roles.describe(account.alvl); // alvl — колонка accounts, ту же читает игра
     return {
       login: account.login,
       email: account.email,

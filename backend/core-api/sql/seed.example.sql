@@ -1,6 +1,6 @@
 -- Пример начального наполнения (после 002_content.sql). Значения — образцы, подставьте свои.
 
-INSERT INTO core_servers (id, name, tag, status, online, max_players, address, version, description, recommended, sort) VALUES
+INSERT INTO core_servers (id, name, tag, `status`, `online`, max_players, address, version, description, recommended, sort) VALUES
   ('main', '4ONE RP', 'MAIN', 'online', 0, 500, 'play.4onerp.com:22005', '1.0.3889.0', 'Основной сервер.', 1, 1);
 
 INSERT INTO core_news (title, excerpt, category, cover, url, published_at) VALUES

@@ -44,11 +44,12 @@ function createApp({ store, config, now }) {
 
   function send(res, status, body, type = 'application/json; charset=utf-8', extra = {}) {
     const payload = typeof body === 'string' ? body : JSON.stringify(body);
-    res.writeHead(status, { ...baseHeaders, 'Content-Type': type, ...extra });
+    res.writeHead(status, { ...baseHeaders, ...(res.corsHeaders || {}), 'Content-Type': type, ...extra });
     res.end(payload);
   }
-  const html = (res, status, body) => send(res, status, body, 'text/html; charset=utf-8', {
-    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+  // formAction: после входа браузер уходит на адрес возврата сайта (https), CSP страницы должен это разрешать
+  const html = (res, status, body, formOrigin) => send(res, status, body, 'text/html; charset=utf-8', {
+    'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; form-action 'self'${formOrigin ? ' ' + formOrigin : ''}; frame-ancestors 'none'; base-uri 'none'`,
     'X-Frame-Options': 'DENY',
   });
   const apiError = (res, status, code, message) => send(res, status, { error: code, error_description: message });
@@ -64,8 +65,23 @@ function createApp({ store, config, now }) {
     return a;
   }
 
+  /** CORS для страниц сайта: только разрешённые источники, без cookie (токен — в заголовке Authorization). */
+  function cors(req, res) {
+    const origin = req.headers.origin;
+    if (!origin || !config.corsOrigins.includes(origin)) return false;
+    res.corsHeaders = {
+      'Access-Control-Allow-Origin': origin, Vary: 'Origin', 'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Max-Age': '600',
+    };
+    return true;
+  }
+
   async function route(req, res) {
     const url = new URL(req.url, config.publicUrl);
+    if (req.url.startsWith('/v1/') || req.url.startsWith('/oauth/token') || req.url.startsWith('/oauth/revoke')) {
+      const allowed = cors(req, res);
+      if (req.method === 'OPTIONS') { res.writeHead(allowed ? 204 : 403, { ...baseHeaders, ...(res.corsHeaders || {}) }); return res.end(); }
+    }
     const path = url.pathname.replace(/\/+$/, '') || '/';
     const method = req.method;
 
@@ -75,7 +91,8 @@ function createApp({ store, config, now }) {
     if (path === '/oauth/authorize' && method === 'GET') {
       const r = oauth.parseAuthorize(Object.fromEntries(url.searchParams));
       if (!r.ok) return html(res, 400, errorPage(r.message));
-      return html(res, 200, loginPage({ clientName: r.client.name, tx: oauth.beginTx(r.params) }));
+      const ru = new URL(r.params.ru);
+      return html(res, 200, loginPage({ clientName: r.client.name, tx: oauth.beginTx(r.params) }), /^https?:$/.test(ru.protocol) ? ru.origin : '');
     }
     if (path === '/oauth/authorize' && method === 'POST') {
       const body = parseBody(req, await readBody(req));
@@ -170,6 +187,7 @@ function createApp({ store, config, now }) {
 }
 
 async function main() {
+  require('./dotenv').loadDotEnv();
   const config = load();
   let store;
   if (config.store === 'memory') {

@@ -42,9 +42,16 @@ CREATE TABLE IF NOT EXISTS `core_oauth_tokens` (
   KEY `idx_tokens_expires` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
--- Права отдельного пользователя БД для API (под root, один раз; пароль подставьте свой):
+-- Уровень администрации: колонка accounts.alvl (0–8). Её же читает и пишет игра (gamemod, миграция 009, Core/AdminAuth.cs).
+-- БД платформы FloV:MP не используется. Команда идемпотентна: если колонка уже есть, ничего не меняется.
+ALTER TABLE `accounts` ADD COLUMN IF NOT EXISTS `alvl` TINYINT UNSIGNED NOT NULL DEFAULT 0;
+
+-- Права отдельного пользователя БД для API (под root, один раз; пароль подставьте свой). Одна база — ra3_main:
 --   CREATE USER 'core_api'@'127.0.0.1' IDENTIFIED BY '<пароль>';
---   GRANT SELECT ON ra3_main.accounts, ra3_main.characters, ra3_main.banned TO 'core_api'@'127.0.0.1';
---   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_oauth_codes, ra3_main.core_oauth_sessions, ra3_main.core_oauth_tokens TO 'core_api'@'127.0.0.1';
---   GRANT SELECT (social_club, alvl) ON flovmp_server.accounts TO 'core_api'@'127.0.0.1';
--- API ничего не пишет в accounts и не меняет пароли и уровни.
+--   GRANT SELECT ON ra3_main.accounts TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT ON ra3_main.characters TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT ON ra3_main.banned TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_oauth_codes TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_oauth_sessions TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_oauth_tokens TO 'core_api'@'127.0.0.1';
+-- Остальные core_* — см. конец 002_content.sql. API ничего не пишет в accounts и не меняет пароли и уровни.

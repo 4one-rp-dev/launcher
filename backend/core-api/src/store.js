@@ -2,8 +2,8 @@
 /**
  * Хранилище. Два варианта с одним интерфейсом:
  *  - memory: для разработки и тестов (данные из seed);
- *  - mysql: игровая MariaDB. Читаем accounts/characters/banned геймода и accounts.alvl платформы;
- *    пишем только в свои таблицы core_oauth_* (sql/001_core_api.sql).
+ *  - mysql: игровая MariaDB, одна база. Читаем accounts (в т.ч. alvl — уровень администрации), characters, banned;
+ *    пишем только в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql).
  * Время — Date (UTC), хеши токенов — hex sha256.
  */
 
@@ -18,13 +18,13 @@ function normAccount(a) {
     redbucks: Number(a.redbucks) || 0,
     vipLvl: Number(a.vipLvl) || 0,
     vipDate: a.vipDate ? new Date(a.vipDate) : null,
+    alvl: Number(a.alvl) || 0,   // уровень администрации 0–8: accounts.alvl
   };
 }
 
 // ---------------------------------------------------------------- память
 function createMemoryStore(seed = {}) {
   const accounts = (seed.accounts || []).map((a) => ({ ...normAccount(a), characters: a.characters || [], banned: !!a.banned, lastAt: a.lastAt || null }));
-  const alvl = new Map(Object.entries(seed.alvl || {}));
   const codes = new Map(); const sessions = new Map(); const tokens = new Map();
   const find = (id) => accounts.find((a) => a.login === id) || accounts.find((a) => a.email && a.email.toLowerCase() === String(id).toLowerCase()) || null;
 
@@ -33,8 +33,6 @@ function createMemoryStore(seed = {}) {
     kind: 'memory',
     async findAccount(identifier) { return find(identifier); },
     async getAccount(login) { return accounts.find((a) => a.login === login) || null; },
-    async getAlvl(socialClub) { return Number(alvl.get(socialClub)) || 0; },
-    async setAlvl(socialClub, lvl) { alvl.set(socialClub, lvl); },
     async listCharacters(account) { return (account.characters || []).map((c) => ({ ...c })); },
     async isBanned(account) { return !!account.banned; },
     async lastSeen(account) { return account.lastAt ? new Date(account.lastAt) : null; },
@@ -80,18 +78,17 @@ function createMemoryStore(seed = {}) {
 
 // ---------------------------------------------------------------- MariaDB
 function createMysqlStore(pool, cfg) {
-  const P = '`' + cfg.db.platform + '`';
   const q = async (sql, params) => (await pool.execute(sql, params))[0];
   const toAccount = (r) => ({
     ...normAccount({
       login: r.login, email: r.email, passwordHash: r.password, socialClub: r.socialclub,
-      redbucks: r.redbucks, vipLvl: r.viplvl, vipDate: r.vipdate,
+      redbucks: r.redbucks, vipLvl: r.viplvl, vipDate: r.vipdate, alvl: r.alvl,
     }),
     lastAt: r.ExitDate || null,
     charIds: [r.character1, r.character2, r.character3].map(Number).filter((n) => n > 0),
     charactersJson: r.characters,
   });
-  const COLS = 'login, email, `password`, socialclub, redbucks, viplvl, vipdate, character1, character2, character3, `characters`, ExitDate';
+  const COLS = 'login, email, `password`, socialclub, redbucks, viplvl, vipdate, character1, character2, character3, `characters`, ExitDate, alvl';
 
   return {
     ...createMysqlContent(pool),
@@ -103,12 +100,6 @@ function createMysqlStore(pool, cfg) {
     async getAccount(login) {
       const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? LIMIT 1`, [login]);
       return rows[0] ? toAccount(rows[0]) : null;
-    },
-    /** Уровень администратора — accounts.alvl платформы, связь по Social Club (как в Core/AdminAuth.cs). */
-    async getAlvl(socialClub) {
-      if (!socialClub) return 0;
-      const rows = await q(`SELECT alvl FROM ${P}.accounts WHERE social_club = ? LIMIT 1`, [socialClub]);
-      return rows[0] ? Number(rows[0].alvl) || 0 : 0;
     },
     async listCharacters(account) {
       const ids = new Set(account.charIds || []);

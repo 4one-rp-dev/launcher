@@ -33,9 +33,8 @@ function seed() {
   return {
     accounts: [
       { login: 'marcus', email: 'm@x.io', passwordHash: hashPassword('Secret-1', 1000), socialClub: 'MarcusSC', redbucks: 1200, lastAt: '2026-10-26T20:00:00Z', characters: [{ id: 1, name: 'Marcus Reed', level: 7, cash: 4800, bank: 31000 }] },
-      { login: 'boss', email: 'b@x.io', passwordHash: hashPassword('Boss-pass', 1000), socialClub: 'BossSC', redbucks: 50 },
+      { login: 'boss', email: 'b@x.io', passwordHash: hashPassword('Boss-pass', 1000), socialClub: 'BossSC', redbucks: 50, alvl: 5 },
     ],
-    alvl: { BossSC: 5 },
     servers: [
       { id: 'main', name: '4ONE RP', tag: 'MAIN', status: 'online', online: 37, max_players: 500, address: '127.0.0.1:22005', version: '1.0.3889.0', description: 'Основной', recommended: true, sort: 1 },
       { id: 'bad', name: 'Битый адрес', status: 'online', address: 'no port here', sort: 2 },

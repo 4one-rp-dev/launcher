@@ -1,0 +1,89 @@
+{
+  "accounts": [
+    {
+      "login": "player",
+      "email": "player@example.com",
+      "passwordHash": "p2$100000$VHg97LVsxuq5m1wggvKzSQ==$uJy27Z9Xja/R5D41beL2qw42U4Ycn72ore+wdxY13fQ=",
+      "socialClub": "PlayerSC",
+      "redbucks": 1250,
+      "vipLvl": 0,
+      "alvl": 0,
+      "lastAt": "2026-10-26T20:00:00Z",
+      "characters": [
+        {
+          "id": 1,
+          "name": "Marcus Reed",
+          "level": 7,
+          "cash": 4800,
+          "bank": 31000
+        }
+      ]
+    },
+    {
+      "login": "admin",
+      "email": "admin@example.com",
+      "passwordHash": "p2$100000$wwR4qvXKVQJTq1QO7bHYgA==$5bx0OJ4leQGtwRYHfmVkShxVysfDyI6jNRt0CVhJVDc=",
+      "socialClub": "AdminSC",
+      "redbucks": 50,
+      "alvl": 5,
+      "characters": [
+        {
+          "id": 2,
+          "name": "Dante Rivera",
+          "level": 12,
+          "cash": 90000,
+          "bank": 250000
+        }
+      ]
+    },
+    {
+      "login": "owner",
+      "email": "owner@example.com",
+      "passwordHash": "p2$100000$ToXeTTh7hEjCtZVJtQBoSQ==$zZRtiE9EwbxcIAvvoG6gBgpiHNJVxtHORuG4SQyBiIA=",
+      "socialClub": "OwnerSC",
+      "redbucks": 0,
+      "alvl": 8
+    }
+  ],
+  "servers": [
+    {
+      "id": "main",
+      "name": "4ONE RP",
+      "tag": "MAIN",
+      "status": "online",
+      "online": 37,
+      "max_players": 500,
+      "address": "127.0.0.1:22005",
+      "version": "1.0.3889.0",
+      "description": "Основной сервер (тестовые данные).",
+      "recommended": true,
+      "sort": 1
+    }
+  ],
+  "news": [
+    {
+      "title": "Обновление 1.4: семьи и особняки",
+      "excerpt": "Регистрация семей в планшете и первые особняки.",
+      "category": "updates",
+      "date": "2026-10-18"
+    },
+    {
+      "title": "Ночные гонки",
+      "excerpt": "Пятница, 22:00.",
+      "category": "events",
+      "date": "2026-10-10"
+    }
+  ],
+  "settings": {
+    "client": "{\"version\":\"1.0.0\",\"manifestUrl\":\"http://127.0.0.1:8080/client/manifest.json\",\"notes\":\"\"}",
+    "notice": "",
+    "flags": "{}"
+  },
+  "promos": [
+    {
+      "code": "WELCOME4",
+      "title": "Приветственный бонус",
+      "amount": 100
+    }
+  ]
+}
