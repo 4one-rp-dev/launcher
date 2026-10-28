@@ -38,7 +38,8 @@ module.exports = {
   },
 
   updates: {
-    feed: `${CDN}/launcher/`,                  // latest.yml + Setup.exe (electron-updater, generic)
+    // релизы лаунчера (v*) на GitHub: latest.yml + Setup.exe; релиз с комплектом клиента (client-*) помечен prerelease и не мешает
+    github: { owner: '4one-rp-dev', repo: 'launcher' },
   },
 
   game: {

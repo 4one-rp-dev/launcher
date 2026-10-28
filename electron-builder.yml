@@ -1,6 +1,5 @@
 # Сборка установщика под Windows (NSIS) + автообновление через electron-updater.
-# Лента обновлений: Supabase Storage, бакет launcher-updates, папка launcher-electron/
-# (старая WPF/Velopack-лента лежит в launcher/ — не смешиваем).
+# Лента обновлений — релизы GitHub репозитория 4one-rp-dev/launcher (теги v*): latest.yml и установщик.
 appId: com.4onerp.launcher
 productName: 4ONE Launcher
 copyright: 4ONE RP
@@ -33,5 +32,7 @@ protocols:
   - name: 4ONE Launcher
     schemes: [gta4one]
 publish:
-  provider: generic
-  url: https://cdn.4onerp.com/launcher/   # TODO(cdn-url): боевой адрес статики
+  provider: github
+  owner: 4one-rp-dev
+  repo: launcher
+  releaseType: release

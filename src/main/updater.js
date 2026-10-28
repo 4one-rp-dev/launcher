@@ -2,7 +2,7 @@
 const config = require('./config');
 const { ok, fail } = require('../core/contract');
 
-/** Автообновление самого лаунчера (electron-updater, generic-лента в Supabase Storage). */
+/** Автообновление самого лаунчера (electron-updater, релизы GitHub). */
 function createUpdater(deps) {
   const { bus, log, app, settings } = deps;
   const st = { state: 'idle', version: '', percent: 0, error: '' };
@@ -14,7 +14,7 @@ function createUpdater(deps) {
     if (au) return au;
     if (!app.isPackaged && process.env.L4_UPDATER_DEV !== '1') return null;  // в разработке не проверяем
     try { au = require('electron-updater').autoUpdater; } catch (e) { log.warn('updater', e.message); return null; }
-    au.setFeedURL({ provider: 'generic', url: config.updates.feed });
+    au.setFeedURL(Object.assign({ provider: 'github' }, config.updates.github));
     au.autoDownload = false; au.autoInstallOnAppQuit = true; au.logger = null;
     au.on('checking-for-update', () => push({ state: 'checking' }));
     au.on('update-available', (i) => push({ state: 'available', version: i.version, error: '' }));
