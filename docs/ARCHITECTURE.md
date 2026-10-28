@@ -9,7 +9,7 @@
 │ ipcMain.handle(канал) → core/handlers.js (валидация) → сервисы │
 │   auth(session.js)  data.js  game.js  codes  settings  updater │
 │   api/oauth.js · api/core.js → Core API (backend/core-api)     │
-│   client/installer.js · download.js · manifest.js · elevate.js │
+│   client/platform.js · kit.js · download.js · manifest.js   │
 │   gta/detect.js · pe-version.js · runner.js                    │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -23,7 +23,7 @@
 ## Потоки
 **Вход (OAuth, Authorization Code + PKCE).** «Войти» → `auth:login` → main создаёт `verifier`/`state`, открывает в системном браузере `…/oauth/authorize` (только наш хост, `openAuth`) → игрок вводит логин и пароль **на странице Core API** (в лаунчер пароль не попадает) → браузер отдаёт ссылку `gta4one://auth/callback?code&state` → `protocol.js` разбирает строго, `main` сверяет `state` и меняет код на токены (`api/oauth.js`) → `GET /v1/me` → профиль с ролью → токены и кэш профиля в `safeStorage` → `auth:changed`. Access живёт 15 минут и обновляется заранее, refresh вращается; при старте — `restore()`, без сети — кэш с пометкой `offline`. Роль («Игрок» / «Администратор n уровня») и права перечитываются раз в 5 минут и при появлении сети: смена уровня в игре видна без перелогина. Сквозной тест: `test/auth.test.js` (настоящий клиент против настоящего Core API без сокетов).
 **Данные.** `data:bootstrap` одним запросом: профиль, серверы, новости, версия клиента, объявление, флаги. Кэш 60 с; без сети отдаём прошлые данные с пометкой `stale`. Нет функции — читаем публичный `bootstrap.json` из Storage.
-**Установка/запуск** (`game.js`, фазы `init|no-gta|unsupported|not-installed|needs-update|ready|checking|installing|verifying|launching|ingame|error`): detect → проверка версии (PE-ресурс GTA5.exe, нужна 1.0.3889.0) → ScriptHookV (zip закреплён по SHA-256) → файлы клиента по манифесту (`format/digest/files[path,size,sha256]`) → моды → `connect.txt` и `commandline.txt` (оригинал сохраняется один раз) → запуск через Steam/Epic/exe → ожидание процесса → слежение за выходом (считаем время в игре). Права на запись в защищённую папку — `elevate.js` (icacls через PowerShell RunAs).
+**Установка/запуск** (`game.js`, фазы `init|no-gta|unsupported|not-installed|needs-update|ready|checking|installing|verifying|launching|ingame|error`): detect → проверка версии (PE-ресурс GTA5.exe, нужна 1.0.3889.0) → комплект клиента (`kit.js`, https из bootstrap, SHA-256) → `platform.js`: тихий установщик платформы ставит клиент, ScriptHookV и режим без BattlEye, `connect` обновляет клиент и моды сервера, подключает к серверу и запускает игру (Steam/Epic/exe) → ожидание процесса GTA5.exe.
 **Промокод.** `codes:redeem` → нормализация (A–Z0–9) → `redeem-launcher-code` → атомарно в SQL → событие `auth:changed` с новым балансом.
 
 ## Безопасность

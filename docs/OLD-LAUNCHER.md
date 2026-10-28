@@ -9,11 +9,11 @@
 | Диплинк `gta4one://` + одна копия приложения | ✅ | `protocol.js`, `index.js` |
 | Только GTA V Legacy 1.0.3889.0, Enhanced отклоняется | ✅ | `gta/detect.js`, `pe-version.js` |
 | Поиск игры: реестр Rockstar, Steam (libraryfolders), Epic (манифесты), типовые пути | ✅ | `gta/detect.js` |
-| ScriptHookV + dinput8, закреплённый SHA-256 архива | ✅ | `client/installer.js`, `config.js` |
+| ScriptHookV + dinput8 | ✅ | ставит платформа (`client/platform.js`) |
 | Установка `FloVMP.asi`, синхронизация модов по манифесту (format/digest/files) | ✅ | `client/*` |
-| Правка `commandline.txt` с резервной копией; `connect.txt` | ✅ ⚠ формат `created=` и нужность `-nobattleye` не подтверждены | `installer.js` |
+| `commandline.txt`, `connect.txt` | ➖ не нужны | вход и режим без BattlEye ведёт платформа |
 | Запуск через Steam / Epic / напрямую; ожидание процесса | ✅ | `runner.js`, `game.js` |
-| Права на запись в папку игры (icacls, повышение) | ✅ | `client/elevate.js` |
+| Права на запись в папку игры | ➖ | запрашивает установщик платформы (UAC) |
 | Автообновление лаунчера | ✅ заменён: Velopack → electron-updater | `updater.js` |
 | Привязка к сайту: профиль и баланс 4Coin в лаунчере | ➕ | `auth`, профиль |
 | Промокоды с сайта + история | ➕ | `codes:*`, `redeem-launcher-code` |

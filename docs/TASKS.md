@@ -6,16 +6,13 @@
 1. **Развернуть Core API** (`backend/core-api/README.md`): выполнить `sql/001_core_api.sql` и `sql/002_content.sql`, завести пользователя БД, секреты `CORE_SECRET`/`CORE_PEPPER`/`CORE_INTERNAL_TOKEN`, запустить за nginx с TLS. Проверить запросы к живой MariaDB (написаны по схеме `database/main.sql`, не запускались).
 2. **Игра: `Core/CoreRewards.cs`** (gamemod) — зачисляет 4Coin из `core_wallet_tx`; без неё промокоды лаунчера в игру не дойдут. Файл не компилировался (сборка проекта в среде разработки не завершилась) — собрать и проверить на тесте, выдать игровому пользователю БД UPDATE на `core_wallet_tx`.
 3. **Подставить настоящие значения** в `src/main/config.js`: `core.url` (`L4_CORE_URL`, сейчас предположение `https://api.4onerp.com`), `cdn.base` (`L4_CDN_URL`, предположение `https://cdn.4onerp.com`), ссылки `links.*` (Discord, форум, донат, база знаний, поддержка — везде `TODO(links)`). Наполнить `core_servers`, `core_news`, `core_settings`, `core_promos` (`sql/seed.example.sql`).
-4. **Клиент игры.** Выложить `FloVMP.asi` и манифест на веб-сервер (`<cdn>/client/manifest.json` + `files/…`) и указать `client.manifestUrl` в `core_settings`, или положить `resources/client/FloVMP.asi` (запасной вариант через `extraResources` в `electron-builder.yml`). Проверить на чистой Windows.
+4. **Комплект клиента.** Собрать zip из папки `client-b3889` пакета сервера (там `FloVMP.exe`, `server.txt`, подписанный клиент), выложить по **https** (CDN или GitHub Releases) и записать в `core_settings` ключ `client`: `node tools/kit-info.js <zip> <версия> <ссылка>` печатает готовый SQL. Подпись клиента — ключом проекта (`C:UsersUser.flovmpproject-release-signing.pem`, копия вне ПК), иначе установщики игроков не примут обновления.
 4а. **Онлайн серверов**: игра или cron шлёт `POST /v1/internal/servers/<id>/stats`; пока никто не шлёт — на карточках статичные значения из БД.
 5. **Первая сборка на Windows**: `npm i && npm run dist`, установка, автообновление (`npm run publish:feed` → проверка `latest.yml`). Подпись кода (`CSC_LINK`, `CSC_KEY_PASSWORD`), иначе SmartScreen.
 
 ## P1 — проверить допущения
-- `connect.txt`: формат (`created=` и др.) и то, как `FloVMP.asi` его читает (в пакете FloV:MP есть строка `FLOVMP-AUTH-v2` — похоже на тикет-авторизацию: нужно ли передавать токен/тикет, а не только адрес и имя).
-- Нужен ли `-nobattleye` (в старом лаунчере был; сделано настройкой, по умолчанию включено).
-- ScriptHookV грузится по `http://` (как в старом) — защищено закреплённым SHA-256 архива; при смене версии GTA обновить хэш в `config.js`.
+- Проверить на чистом ПК: первая установка (комплект → установщик → клиент с игрового сервера), вход, повторный вход с обновлением, «Проверить файлы», удаление. Запрос UAC появляется один раз, если GTA лежит в `Program Files`.
 - Epic: `epicAppId` и URI запуска из старого лаунчера, не проверены на свежем Epic Launcher.
-- Права на запись (`elevate.js`) проверить для `C:\Program Files\…`.
 - Статус серверов и онлайн: сейчас приходят из `launcher-bootstrap` (поля `online`, `status` ведёт сервер/админка). Пинг (`s.ping`) отрисован, но нигде не заполняется — подключить `runner.tcpPing` в `data.js`.
 
 ## P2 — улучшения
