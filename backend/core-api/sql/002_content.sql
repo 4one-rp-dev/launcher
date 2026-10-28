@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS `core_news` (
   KEY `idx_news_date` (`published`, `published_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ключи: client = {"version","manifestUrl","notes"}, notice = текст объявления, flags = {"имя":true}
+-- ключи: client = {"version","kitUrl","kitSha256","kitSize","notes"} (комплект клиента, см. docs/API.md), notice = текст объявления, flags = {"имя":true}
 CREATE TABLE IF NOT EXISTS `core_settings` (
   `k` VARCHAR(40) NOT NULL,
   `v` TEXT        NOT NULL,

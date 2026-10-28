@@ -83,7 +83,7 @@ function createMock(opts) {
   const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending });
 
   // ---- настройки
-  const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, noBattleye: true, syncMods: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true };
+  const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true };
   let settings = Object.assign({}, settingsDefaults, store.get('settings', {}));
 
   // ---- игра
@@ -94,7 +94,7 @@ function createMock(opts) {
     update: () => { G.phase = 'needs-update'; G.client = { installed: true, version: '0.9.2', remoteVersion: '1.0.0', needsUpdate: true, updateBytes: 86 * MB }; },
     'no-gta': () => { G.phase = 'no-gta'; G.gta = null; G.client.installed = false; },
     enhanced: () => { G.phase = 'unsupported'; G.gta = Object.assign({}, gtaOk, { version: '', isSupported: false, hasLegacy: false, hasEnhanced: true, exe: gtaOk.dir + '\\GTA5_Enhanced.exe' }); G.error = { code: 'gta_unsupported', message: '' }; },
-    downloading: () => { G.phase = 'installing'; G.client = { installed: false, version: '', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; G.progress = { stage: 'client', file: 'FloVMP.asi', done: Math.round(TOTAL * 0.43), total: TOTAL, speed: 24.6 * MB, eta: 27, percent: 43 }; },
+    downloading: () => { G.phase = 'installing'; G.client = { installed: false, version: '', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; G.progress = { stage: 'client', file: '', done: Math.round(TOTAL * 0.43), total: TOTAL, speed: 24.6 * MB, eta: 27, percent: 43 }; },
     ingame: () => { G.phase = 'ingame'; G.running = true; },
   };
   if (scenario === 'ingame') sc.ingame(); else if (scenario === 'downloading') sc.downloading();
@@ -111,7 +111,7 @@ function createMock(opts) {
         if (cancelled) { clearInterval(timer); G.progress = null; G.phase = G.client.installed ? 'ready' : 'not-installed'; pub(); return resolve(false); }
         done += speed / 5 * (0.85 + Math.random() * 0.3);
         const p = Math.min(done, total);
-        G.progress = { stage: p < total * 0.06 ? 'scripthook' : 'client', file: p < total * 0.06 ? 'ScriptHookV' : 'FloVMP.asi', done: p, total, speed, eta: Math.round((total - p) / speed), percent: Math.floor(p / total * 100) };
+        G.progress = { stage: p < total * 0.4 ? 'kit' : 'client', file: '', done: p, total, speed, eta: Math.round((total - p) / speed), percent: Math.floor(p / total * 100) };
         pub();
         if (p >= total) { clearInterval(timer); G.progress = null; G.client = { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; G.phase = 'ready'; pub(); resolve(true); }
       }, 200);

@@ -47,14 +47,6 @@ module.exports = {
     epicAppId: '9d2d0eb64d5c44529cece33fe2a46482',
     exe: 'GTA5.exe',
     enhancedExe: 'GTA5_Enhanced.exe',
-    asi: 'FloVMP.asi',
-    /** ScriptHookV (нужен ASI-загрузчик). Хэш архива закреплён, как в старом лаунчере. */
-    scriptHook: {
-      url: 'http://www.dev-c.com/files/ScriptHookV_3889.0_1158.13.zip',
-      referer: 'http://www.dev-c.com/gtav/scripthookv/',
-      zipSha256: 'B64C97C3353906F14621E7E9511E4AEC2A7D436ECC21ED124D3816585E2E6188',
-      files: ['ScriptHookV.dll', 'dinput8.dll'],
-    },
     /** Запуск через платформы */
     steamUri: 'steam://rungameid/271590',
     epicUri: 'com.epicgames.launcher://apps/9d2d0eb64d5c44529cece33fe2a46482?action=launch&silent=true',

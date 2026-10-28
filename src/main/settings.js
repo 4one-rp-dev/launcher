@@ -10,8 +10,6 @@ const SCHEMA = {
   minimizeToTray: { type: 'boolean', def: true },
   autostart: { type: 'boolean', def: false },
   autoUpdates: { type: 'boolean', def: true },
-  noBattleye: { type: 'boolean', def: true },   // запись -nobattleye в commandline.txt (как в старом лаунчере); TODO: подтвердить необходимость
-  syncMods: { type: 'boolean', def: true },
   playMinutes: { type: 'number', def: 0 },
   lastSeenNews: { type: 'string', def: '' },
   lang: { type: 'string', def: 'ru', enum: ['ru', 'en'] },  // язык интерфейса

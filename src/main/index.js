@@ -145,7 +145,8 @@ function buildServices(settings) {
   const { createOAuthClient } = require('./api/oauth');
   const { createVault, createAuth } = require('./session');
   const { createData, createCodes, createAccount } = require('./data');
-  const { createInstaller } = require('./client/installer');
+  const { createPlatform } = require('./client/platform');
+  const { createKit } = require('./client/kit');
   const { createRunner } = require('./runner');
   const { createGame } = require('./game');
   const { createUpdater } = require('./updater');
@@ -163,9 +164,10 @@ function buildServices(settings) {
   const data = createData({ backend, auth, settings, log });
   const codes = createCodes({ backend, auth, log });
   const account = createAccount({ backend, auth });
-  const installer = createInstaller({ log, resourcesDir: process.resourcesPath });
+  const platform = createPlatform({ log });
+  const kit = createKit({ dir: path.join(userData, 'client-kit'), log, devDir: process.env.L4_KIT_DIR || '' });
   const runner = createRunner({ shell, log });
-  game = createGame({ settings, data, auth, installer, runner, bus, log, dialog: { pickFolder: pick } });
+  game = createGame({ settings, data, auth, platform, kit, runner, bus, log, dialog: { pickFolder: pick } });
   const updater = createUpdater({ bus, log, app, settings });
   return { app: appSvc, win: realWin, auth, data, game, codes, account, settings, updater, log };
 }

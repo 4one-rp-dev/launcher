@@ -35,9 +35,7 @@ export function mount(root, ctx) {
         <div class="sact"><button class="bt g sm" data-act="verify" data-f="inst">${ic('refresh')}${t('Проверить')}</button><button class="bt g dng sm" data-act="uninstall" data-f="inst">${t('Удалить')}</button></div></div>`)}
   </div>`;
   P('launch').innerHTML = `<div class="stack">${box('rocket', t('Запуск'),
-    sw('syncMods', t('Синхронизировать моды'), t('Перед стартом сверять файлы с сервером проекта'))
-    + sw('noBattleye', t('Запускать без BattlEye'), t('Добавляет -nobattleye в commandline.txt, как в прежнем лаунчере'))
-    + sw('closeAfterStart', t('Закрывать лаунчер после старта'), t('Окно закроется, когда запустится GTA V')))}</div>`;
+    sw('closeAfterStart', t('Закрывать лаунчер после старта'), t('Окно закроется, когда запустится GTA V')))}</div>`;
   P('look').innerHTML = `<div class="stack">${box('palette', t('Внешний вид'), `
       <div class="srow"><div class="st"><b>${t('Язык')}</b><small>${t('Язык интерфейса лаунчера')}</small></div>${seg('data-lang', t('Язык'), [['ru', 'Русский', 'ru'], ['en', 'English', 'en']])}</div>
       <div class="srow"><div class="st"><b>${t('Цвет интерфейса')}</b><small>${t('Как в игре: меняется только акцент')}</small></div>
