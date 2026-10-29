@@ -20,10 +20,10 @@ module.exports = {
 
   /**
    * Единый API 4ONE (backend/core-api): OAuth для лаунчера и сайта, профиль и роль из игровой БД.
-   * TODO(core-url): адрес боевого API (сейчас предположение). Для разработки: L4_CORE_URL=http://127.0.0.1:8787
+   * Адрес API: пока бесплатное имя sslip.io (указывает на VDS игры, сертификат Let's Encrypt), когда появится DNS api.4onerp.com — сменить здесь и выпустить новую версию. Для разработки: L4_CORE_URL=http://127.0.0.1:8787
    */
   core: {
-    url: (process.env.L4_CORE_URL || 'https://api.4onerp.com').replace(/\/+$/, ''),
+    url: (process.env.L4_CORE_URL || 'https://188-130-132-47.sslip.io').replace(/\/+$/, ''),
     clientId: '4one-launcher',
     redirectUri: 'gta4one://auth/callback',
     timeoutMs: 12000,
