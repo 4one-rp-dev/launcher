@@ -422,4 +422,6 @@ export const EN = {
   'Эти настройки — те же, что в меню F1 в игре. Изменения применятся при следующем запуске.': 'These are the same settings as the in-game F1 menu. Changes apply on the next launch.',
   'Эту клавишу назначить нельзя': 'This key cannot be assigned',
   'Вернули настройки сервера': 'Server settings restored',
+  'Установится само при закрытии лаунчера': 'It installs itself when you close the launcher',
+  'Перезапустить сейчас': 'Restart now',
 };

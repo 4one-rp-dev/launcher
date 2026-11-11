@@ -226,7 +226,7 @@ window.addEventListener('l4:lang', (e) => applyLang(e.detail));
 function renderUpdateBanner(u) {
   if (u.state === 'available') setBanner('update', { icon: 'down2', text: t('Доступно обновление лаунчера {v}', { v: u.version }), actions: [{ label: t('Скачать'), run: () => call('update:download') }] });
   else if (u.state === 'downloading') setBanner('update', { icon: 'down2', text: t('Загрузка обновления… {p}%', { p: u.percent }) });
-  else if (u.state === 'ready') setBanner('update', { kind: '', icon: 'check', text: t('Обновление {v} готово', { v: u.version }), actions: [{ label: t('Перезапустить'), run: () => call('update:install') }] });
+  else if (u.state === 'ready') setBanner('update', { kind: '', icon: 'check', text: t('Обновление {v} готово', { v: u.version }), sub: t('Установится само при закрытии лаунчера'), actions: [{ label: t('Перезапустить сейчас'), run: () => call('update:install') }] });
   else setBanner('update', null);
 }
 

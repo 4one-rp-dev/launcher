@@ -17,7 +17,8 @@
     "shots": "node tools/shots.js",
     "icons": "node tools/make-icons.js",
     "dist": "electron-builder --win nsis",
-    "dist:dir": "electron-builder --win --dir"
+    "dist:dir": "electron-builder --win --dir",
+    "release": "node tools/release.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
