@@ -27,5 +27,7 @@ run('npx', ['electron-builder', '--win', 'nsis', '--publish', 'never']);
 const exe = `4ONE-Launcher-Setup-${ver}.exe`;
 const files = ['latest.yml', exe, `${exe}.blockmap`].map((f) => path.join(root, 'dist', f));
 for (const f of files) if (!fs.existsSync(f)) { console.error(`Нет файла ${f}`); process.exit(1); }
-run('gh', ['release', 'create', tag, ...files, '--repo', `${owner}/${repo}`, '--title', `4ONE Launcher ${ver}`, '--notes', notes, '--latest']);
+// тег — на собранный коммит (он должен быть уже запушен), а не на ветку по умолчанию
+const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim();
+run('gh', ['release', 'create', tag, ...files, '--repo', `${owner}/${repo}`, '--target', sha, '--title', `4ONE Launcher ${ver}`, '--notes', notes, '--latest']);
 console.log(`Готово: ${tag}. Лаунчеры игроков обновятся сами.`);
