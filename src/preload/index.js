@@ -10,7 +10,7 @@ const CHANNELS = [
   'data:bootstrap',
   'servers:select',
   'game:state', 'game:detect', 'game:browse', 'game:setPath',
-  'game:install', 'game:verify', 'game:play', 'game:cancel', 'game:uninstall',
+  'game:install', 'game:verify', 'game:play', 'game:cancel', 'game:uninstall', 'game:relocate',
   'prefs:get', 'prefs:set', 'prefs:reset',
   'codes:redeem', 'codes:history',
   'account:security', 'account:sessions', 'account:revokeSession', 'account:revokeOthers', 'account:history', 'account:wallet', 'account:characters',

@@ -88,7 +88,7 @@ function createMock(opts) {
 
   // ---- игра
   const gtaOk = { dir: 'C:\\Program Files\\Rockstar Games\\Grand Theft Auto V', source: 'rockstar', version: '1.0.3889.0', exe: 'C:\\Program Files\\Rockstar Games\\Grand Theft Auto V\\GTA5.exe', isSupported: true, hasLegacy: true, hasEnhanced: false };
-  const G = { found: [{ dir: gtaOk.dir, source: 'rockstar', version: '1.0.3889.0', supported: true }, { dir: 'D:\\SteamLibrary\\steamapps\\common\\Grand Theft Auto V', source: 'steam', version: '1.0.3889.0', supported: true }], phase: 'ready', gta: gtaOk, client: { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }, progress: null, error: null, running: false };
+  const G = { layout: { root: 'D:\\4ONE RP', game: 'D:\\4ONE RP\\Game', data: 'D:\\4ONE RP\\Game\\data', installedDir: 'D:\\4ONE RP\\Game', inLayout: true }, found: [{ dir: gtaOk.dir, source: 'rockstar', version: '1.0.3889.0', supported: true }, { dir: 'D:\\SteamLibrary\\steamapps\\common\\Grand Theft Auto V', source: 'steam', version: '1.0.3889.0', supported: true }], phase: 'ready', gta: gtaOk, client: { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }, progress: null, error: null, running: false };
   const sc = {
     'not-installed': () => { G.phase = 'not-installed'; G.client = { installed: false, version: '', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; },
     update: () => { G.phase = 'needs-update'; G.client = { installed: true, version: '0.9.2', remoteVersion: '1.0.0', needsUpdate: true, updateBytes: 86 * MB }; },
@@ -127,6 +127,7 @@ function createMock(opts) {
     async install() { if (frozen) return ok(game.getState()); await simulateInstall(G.phase === 'needs-update' ? 86 * MB : TOTAL, false); return ok(game.getState()); },
     async verify() { if (frozen) return ok(game.getState()); await simulateInstall(220 * MB, true); return ok(game.getState()); },
     async cancel() { cancelled = true; return ok(); },
+    async relocate() { G.layout.inLayout = true; pub(); return ok(game.getState()); },
     async uninstall() { G.client.installed = false; G.phase = 'not-installed'; pub(); return ok(game.getState()); },
     async play() {
       if (!S.authed && !S.guest) return fail('invalid_session');

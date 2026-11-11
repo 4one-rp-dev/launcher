@@ -424,4 +424,17 @@ export const EN = {
   'Вернули настройки сервера': 'Server settings restored',
   'Установится само при закрытии лаунчера': 'It installs itself when you close the launcher',
   'Перезапустить сейчас': 'Restart now',
+  // папка 4ONE RP (раскладка как у RMRP)
+  'Папка 4ONE RP': '4ONE RP folder',
+  'Всё для игры в одной папке': 'Everything for the game in one folder',
+  'Клиент и файлы серверов': 'Client and server files',
+  'Перенести сюда': 'Move here',
+  'Launcher — лаунчер, Game — клиент игры, data внутри Game — моды и файлы серверов, журналы, настройки F1. В папке GTA V лежат только три файла для запуска.': 'Launcher — the launcher, Game — the game client, data inside Game — server mods and files, logs, F1 settings. The GTA V folder only holds three files needed to start.',
+  'Установлены в папке 4ONE RP': 'Installed in the 4ONE RP folder',
+  'Будут установлены в папку 4ONE RP': 'Will be installed in the 4ONE RP folder',
+  'Сейчас в другой папке: {d}': 'Currently in another folder: {d}',
+  'Перенести клиент в папку 4ONE RP?': 'Move the client to the 4ONE RP folder?',
+  'Клиент и файлы серверов переедут в {d}. Это может занять несколько минут; ключ игрока, настройки F1 и скачанные моды сохранятся.': 'The client and server files will move to {d}. This may take a few minutes; your player key, F1 settings and downloaded mods are kept.',
+  'Перенести': 'Move',
+  'Клиент перенесён в папку 4ONE RP': 'The client was moved to the 4ONE RP folder',
 };

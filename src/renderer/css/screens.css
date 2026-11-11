@@ -14,7 +14,7 @@
 /* ---------- вход ---------- */
 #app[data-screen=login] .rail{display:none}
 #app[data-screen=login] .shell{padding:0 16px 16px}
-.login{position:absolute;inset:0;display:flex;overflow-y:auto;overflow-x:hidden;padding:10px 4px;scrollbar-width:thin}
+.login{position:absolute;inset:0;display:flex;overflow-y:auto;overflow-x:hidden;padding:10px 4px}
 .login-card{margin:auto;flex:none;width:min(460px,100%);padding:30px 32px 26px;display:flex;flex-direction:column;gap:20px}
 .lg-logo{display:flex;justify-content:center}
 .lg-logo img{width:196px;height:auto;display:block}

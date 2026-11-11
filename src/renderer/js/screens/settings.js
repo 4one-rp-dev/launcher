@@ -59,6 +59,12 @@ export function mount(root, ctx) {
     + row(t('Режим окна GTA V'), t('Меняется в настройках самой игры (settings.xml)'), ppick('windowMode', t('Режим окна GTA V'), [['fullscreen', t('Полный экран')], ['borderless', t('Без рамки')], ['windowed', t('В окне')]]))
     + psw('vsync', t('Вертикальная синхронизация'), t('Без разрывов кадра, но с небольшой задержкой ввода')))}</div>`);
   P('download').innerHTML = `<div class="stack">
+    ${box('folder', t('Папка 4ONE RP'), `
+      <div class="srow"><div class="st"><b>${t('Всё для игры в одной папке')}</b><small class="path" data-f="root"></small></div>
+        <div class="sact"><button class="bt g sm" data-act="rootOpen">${t('Открыть папку')}</button></div></div>
+      <div class="srow"><div class="st"><b>${t('Клиент и файлы серверов')}</b><small data-f="where"></small></div>
+        <div class="sact"><button class="bt sm" data-act="relocate" data-f="move" hidden>${t('Перенести сюда')}</button></div></div>
+      <p class="snote">${t('Launcher — лаунчер, Game — клиент игры, data внутри Game — моды и файлы серверов, журналы, настройки F1. В папке GTA V лежат только три файла для запуска.')}</p>`)}
     ${box('down2', t('Загрузка клиента'),
     row(t('Ограничение скорости'), t('Чтобы загрузка не мешала другим программам. Меняется сразу, даже во время загрузки'), pick('dlLimit', t('Ограничение скорости'), [['0', t('Без ограничения')], ['50', '50 МБ/с'], ['20', '20 МБ/с'], ['10', '10 МБ/с'], ['5', '5 МБ/с']])))}
     ${box('disk', t('Скачанные файлы'), `
@@ -209,6 +215,10 @@ export function mount(root, ctx) {
     setT('client', cl.installed ? `${t('Установлен')} ${cl.version || ''}`.trim() : t('Не установлен'));
     setT('client2', cl.installed ? `${t('Установлен')} ${cl.version || ''}`.trim() : t('Не установлен'));
     setT('gver', g.gta ? [g.gta.version ? 'Legacy ' + g.gta.version : t('Версия не определена'), SRC[g.gta.source] || ''].filter(Boolean).join(' · ') : '—');
+    const L = g.layout;
+    setT('root', L ? L.root : '—');
+    setT('where', !L ? '—' : L.inLayout ? (cl.installed ? t('Установлены в папке 4ONE RP') : t('Будут установлены в папку 4ONE RP')) : t('Сейчас в другой папке: {d}', { d: L.installedDir }));
+    const mv = F('move'); if (mv) { mv.hidden = !L || L.inLayout; mv.disabled = !g.gta || ['installing', 'verifying', 'launching', 'ingame'].includes(g.phase); }
     setT('cache', cache ? (cache.bytes ? `${bytes(cache.bytes)} · ${cache.dir}` : t('Пусто')) : '…');
     // найденные копии игры: список меняется редко — перестраиваем только этот блок и только при изменении
     const found = (g.found || []).filter((x) => !g.gta || x.dir.toLowerCase() !== g.gta.dir.toLowerCase());
@@ -288,6 +298,12 @@ export function mount(root, ctx) {
     else if (a === 'logs') check(await call('app:openPath', 'logs'));
     else if (a === 'use') { if (check(await call('game:setPath', el.dataset.dir))) toast('ok', t('Папка игры выбрана')); }
     else if (a === 'cacheOpen') check(await call('app:openPath', 'cache'));
+    else if (a === 'rootOpen') check(await call('app:openPath', 'root'));
+    else if (a === 'relocate') {
+      const L = S.game && S.game.layout; if (!L) return;
+      if (!await confirmBox(t('Перенести клиент в папку 4ONE RP?'), t('Клиент и файлы серверов переедут в {d}. Это может занять несколько минут; ключ игрока, настройки F1 и скачанные моды сохранятся.', { d: L.game }), t('Перенести'), false)) return;
+      check(await call('game:relocate'));
+    }
     else if (a === 'cacheClear') {
       if (!await confirmBox(t('Удалить скачанный комплект?'), t('Установленный клиент останется. Если комплект понадобится снова, лаунчер скачает его сам.'), t('Удалить'), true)) return;
       const r = await call('app:clearCache'); if (check(r)) { cache = Object.assign({}, cache || {}, r.data); sync(); toast('ok', t('Скачанные файлы удалены')); }

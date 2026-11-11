@@ -169,6 +169,7 @@ function buildServices(settings) {
       return ok({ bytes: kitRef.size() });
     },
     async openPath(kind) {
+      if (kind === 'root') { const g = game && game.getState(); const d = g && g.layout && g.layout.root; if (!d) return fail('unknown'); fs.mkdirSync(d, { recursive: true }); const err = await shell.openPath(d); return err ? fail('unknown') : ok(); }
       if (kind === 'cache') { const d = kitRef && kitRef.dir; if (!d) return fail('unknown'); fs.mkdirSync(d, { recursive: true }); const err = await shell.openPath(d); return err ? fail('unknown') : ok(); }
       const p = kind === 'logs' ? log.dir : kind === 'game' ? (game && game.getState().gta && game.getState().gta.dir) : userData;
       if (!p) return fail('gta_not_found');
@@ -218,12 +219,14 @@ function buildServices(settings) {
   const codes = createCodes({ backend, auth, log });
   const account = createAccount({ backend, auth });
   const platform = createPlatform({ log });
-  // комплект (~400 МБ) — в Local, а не в Roaming: Roaming синхронизируется в доменных сетях и не для кэша
-  const kitDir = path.join(process.env.LOCALAPPDATA || userData, '4ONE Launcher', 'client-kit');
+  // раскладка как у RMRP: <корень>\Launcher, \Game, \Game\data; комплект клиента — в Game\.4one\kit
+  const layout = require('./layout').resolveLayout({ packaged: app.isPackaged });
+  log.info('layout', `корень ${layout.root}${layout.own ? '' : ' (лаунчер вне …\\Launcher)'}`);
+  const kitDir = layout.kit;
   const kit = createKit({ dir: kitDir, log, devDir: process.env.L4_KIT_DIR || '', maxBps: () => (Number(settings.get().dlLimit) || 0) * 1024 * 1024 });
   kitRef = kit;
   let guestName = ''; try { guestName = require('os').userInfo().username; } catch (_) { /* нет имени */ }
-  game = createGame({ settings, data, auth, platform, kit, runner, bus, log, guestName, dialog: { pickFolder: pick } });
+  game = createGame({ settings, data, auth, platform, kit, runner, bus, log, guestName, layout, dialog: { pickFolder: pick } });
   const updater = createUpdater({ bus, log, app, settings });
   const prefs = createPrefs({ runner, log });
   return { app: appSvc, win: realWin, auth, data, game, codes, account, settings, updater, log, prefs };

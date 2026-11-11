@@ -121,7 +121,11 @@ function createPlatform(deps) {
     });
   }
 
-  const install = (exe, o) => run(exe, ['install'].concat(o && o.gtaDir ? ['--gta-dir', o.gtaDir] : []), o);
+  // --dir / --data-dir: раскладка как у RMRP (<корень>\Game и Game\data); повторный install с другими путями переносит
+  const install = (exe, o) => run(exe, ['install']
+    .concat(o && o.gtaDir ? ['--gta-dir', o.gtaDir] : [])
+    .concat(o && o.installDir ? ['--dir', o.installDir] : [])
+    .concat(o && o.dataDir ? ['--data-dir', o.dataDir] : []), o);
   const connect = (exe, address, name, o) => run(exe, ['connect', address].concat(name ? ['--name', name] : []), o);
   const repair = (exe, o) => run(exe, ['repair'], o);
   const verify = (exe, o) => run(exe, ['verify'], o);

@@ -39,7 +39,7 @@ function createHandlers(s) {
       return s.app.openExternal(key);
     },
     'app:openPath': async (kind) => {
-      if (!['logs', 'game', 'userdata', 'cache'].includes(kind)) return fail('bad_request');
+      if (!['logs', 'game', 'userdata', 'cache', 'root'].includes(kind)) return fail('bad_request');
       return s.app.openPath(kind);
     },
     'app:copyDiagnostics': async () => s.app.copyDiagnostics(),
@@ -73,6 +73,7 @@ function createHandlers(s) {
     },
 
     'game:state': async () => ok(s.game.getState()),
+    'game:relocate': async () => (s.game.relocate ? s.game.relocate() : fail('bad_request')),
     // настройки игры: меню F1 клиента (player.cfg) и settings.xml самой GTA V
     'prefs:get': async (force) => s.prefs.get(!!force),
     'prefs:set': async (patch) => (patch && typeof patch === 'object' && !Array.isArray(patch) && Object.keys(patch).length <= 8 ? s.prefs.set(patch) : fail('bad_request')),

@@ -3,6 +3,8 @@ const config = require('./config');
 const { fail, ok, ERRORS, message } = require('../core/contract');
 const { detectGta, inspectDir } = require('./gta/detect');
 const { stageOf } = require('./client/platform');
+const path = require('path');
+const { sameDir } = require('./layout');
 
 /**
  * Игровой контроллер: единственный источник правды о том, что показывать на кнопке «Играть».
@@ -20,7 +22,7 @@ function createGame(deps) {
   const detectFn = deps.detect || detectGta;
 
   const st = {
-    phase: 'init', gta: null, found: [], client: { installed: false, version: '', remoteVersion: '', needsUpdate: false, updateBytes: 0 },
+    phase: 'init', gta: null, found: [], layout: null, client: { installed: false, version: '', remoteVersion: '', needsUpdate: false, updateBytes: 0 },
     progress: null, error: null, running: false,
   };
   let abort = null; let busy = false; let sessionStart = 0; let lastExe = null;
@@ -54,6 +56,11 @@ function createGame(deps) {
     st.client.needsUpdate = false; st.client.updateBytes = 0; st.client.remoteVersion = '';
     st.client.installed = false; st.client.version = '';
     const exe = await findExe();
+    const L = deps.layout;
+    if (L) {
+      const inst = await platform.installedExe();
+      st.layout = { root: L.root, game: L.game, data: L.data, installedDir: inst ? path.dirname(inst) : '', inLayout: !inst || sameDir(path.dirname(inst), L.game) };
+    }
     if (exe) {
       try {
         const s = await platform.status(exe);
@@ -91,7 +98,10 @@ function createGame(deps) {
       const k = await kit.ensure(data.clientInfo(), { signal: sig, onProgress: sink });
       exe = k.exe; lastExe = exe;
     }
-    await platform.install(exe, { gtaDir: st.gta.dir, signal: sig, onProgress: fromPlatform(sink) });
+    // первая установка — сразу в папку 4ONE RP (как у RMRP); уже стоящий в другом месте клиент не двигаем без спроса
+    const L = deps.layout; const inst = await platform.installedExe();
+    const dirs = L && !inst ? { installDir: L.game, dataDir: L.data } : {};
+    await platform.install(exe, Object.assign({ gtaDir: st.gta.dir, signal: sig, onProgress: fromPlatform(sink) }, dirs));
     return (await platform.installedExe()) || exe;
   }
 
@@ -157,6 +167,17 @@ function createGame(deps) {
       await refresh(); bus.emit('toast', { kind: 'ok', text: 'Файлы проверены' }); return ok(getState());
     }),
     cancel: async () => { if (abort) abort.abort(); return ok(); },
+    /** Перенести клиент и данные в папку 4ONE RP (Game и Game\data). Платформа переносит данные и оставляет junction. */
+    relocate: () => guarded(async () => {
+      const L = deps.layout; if (!L) return fail('bad_request');
+      if (!st.gta) return fail('gta_not_found');
+      if (await runner.isRunning(config.game.exe)) return fail('game_running');
+      setPhase('installing', { error: null, progress: progress0('client') });
+      let exe = await findExe();
+      if (!exe) { const k = await kit.ensure(data.clientInfo(), { signal: abort.signal, onProgress: progressSink() }); exe = k.exe; }
+      await platform.install(exe, { gtaDir: st.gta.dir, installDir: L.game, dataDir: L.data, signal: abort.signal, onProgress: fromPlatform(progressSink()) });
+      await refresh(); bus.emit('toast', { kind: 'ok', text: 'Клиент перенесён в папку 4ONE RP' }); return ok(getState());
+    }),
     uninstall: () => guarded(async () => {
       if (!st.gta) return fail('gta_not_found');
       if (await runner.isRunning(config.game.exe)) return fail('game_running');
