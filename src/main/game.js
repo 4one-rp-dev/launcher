@@ -12,6 +12,9 @@ const { stageOf } = require('./client/platform');
  * Установку, обновление клиента, моды сервера и вход ведёт платформа (client/platform.js, тихий установщик);
  * комплект с установщиком лаунчер скачивает сам (client/kit.js). Игрок ничего не ставит руками.
  */
+/** Имя для подключения: латиница, цифры, «_», до 24 знаков (кириллица из имени пользователя Windows отбрасывается). */
+function cleanName(s) { return String(s || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 24); }
+
 function createGame(deps) {
   const { settings, data, auth, platform, kit, runner, bus, log, dialog } = deps;
   const detectFn = deps.detect || detectGta;
@@ -163,7 +166,8 @@ function createGame(deps) {
 
     /** Играть: при необходимости ставит клиент, затем платформа обновляет его и моды, запускает игру и подключает к серверу */
     play: () => guarded(async () => {
-      if (!auth.state().authed) return fail('invalid_session');
+      const a = auth.state();
+      if (!a.authed && !a.guest) return fail('invalid_session');
       if (!st.gta) return fail('gta_not_found');
       if (st.phase === 'unsupported') return fail(st.error && st.error.code || 'gta_unsupported');
       const server = data.selected();
@@ -177,10 +181,12 @@ function createGame(deps) {
       if (!exe) throw Object.assign(new Error('нет установщика клиента'), { code: 'client_kit_missing' });
       setPhase('launching', { progress: progress0('check'), error: null });
 
-      const profile = auth.state().profile || {};
-      const nick = profile.gameName || profile.nickname || profile.username || 'Player';
+      // имя на экране загрузки; игровой аккаунт выбирается уже в игре (вход или регистрация)
+      const profile = a.profile || {};
+      const nick = cleanName(profile.gameName || profile.nickname || profile.username || deps.guestName || '') || 'Player';
       await platform.connect(exe, server.address, nick, { gtaDir: st.gta.dir, signal: abort.signal, onProgress: fromPlatform(sink) });
-      const appeared = await runner.waitAppear(config.game.exe, 20000, abort.signal);
+      // Steam/Epic/Rockstar Launcher могут запускать игру долго (вход, обновление лаунчера магазина)
+      const appeared = await runner.waitAppear(config.game.exe, config.game.launchWaitMs || 180000, abort.signal);
       if (!appeared) throw Object.assign(new Error('GTA5.exe не появился'), { code: 'launch_failed' });
       st.progress = null;
 
@@ -193,4 +199,4 @@ function createGame(deps) {
   };
 }
 
-module.exports = { createGame };
+module.exports = { createGame, cleanName };

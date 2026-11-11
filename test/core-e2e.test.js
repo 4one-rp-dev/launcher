@@ -15,14 +15,16 @@ test('каталог: серверы, новости, клиент, объявл
   assert.strictEqual(w.auth.state().authed, false, 'вход для каталога не нужен');
 });
 
-test('каталог: API недоступен — кэш с пометкой stale, потом ошибка сети без кэша', async () => {
+test('каталог: API недоступен — кэш с пометкой stale, без кэша — сервер по умолчанию', async () => {
   let down = false;
   const w = world({ fetch: (real) => async (u, i) => { if (down) throw new Error('offline'); return real(u, i); } });
   const ok1 = await w.data.bootstrap(true); assert.ok(ok1.ok && !ok1.data.stale);
   down = true;
   const cached = await w.data.bootstrap(true); assert.ok(cached.ok && cached.data.stale, 'показываем сохранённое');
   const fresh = world({ fetch: () => async () => { throw new Error('offline'); } });
-  assert.strictEqual((await fresh.data.bootstrap(true)).code, 'network_error');
+  const fb = await fresh.data.bootstrap(true);
+  assert.ok(fb.ok && fb.data.stale, 'играть можно и без Core API');
+  assert.strictEqual(fb.data.servers[0].address, '188.130.132.47:7788');
 });
 
 test('промокод: награда, история, баланс в профиле растёт; повтор, срок и мусор — понятные коды', async () => {
@@ -93,4 +95,19 @@ test('сессию отозвали на сервере: запрос данны
   const r = await w.account.wallet();
   assert.strictEqual(r.code, 'invalid_session');
   assert.strictEqual(w.auth.state().authed, false); assert.strictEqual(w.auth.state().reason, 'invalid_session');
+});
+
+test('живой статус сервера: /info даёт онлайн и максимум; молчит /info и закрыт вход — «недоступен»', async () => {
+  const { probeServer } = require('../src/main/data');
+  const srv = { id: 'main', address: '10.0.0.1:7788', status: 'online', online: 5, max: 500 };
+  const urls = [];
+  const up = await probeServer(srv, { fetch: async (u) => { urls.push(u); return new Response(JSON.stringify({ players: 12, maxPlayers: 1000 }), { status: 200 }); } });
+  assert.deepStrictEqual(urls, ['http://10.0.0.1:7808/info']);
+  assert.strictEqual(up.online, 12); assert.strictEqual(up.max, 1000); assert.strictEqual(up.status, 'online'); assert.ok(up.ping >= 0);
+  const gate = await probeServer(srv, { fetch: async () => { throw new Error('x'); }, tcpPing: async (a) => (a === '10.0.0.1:7798' ? 40 : null) });
+  assert.strictEqual(gate.status, 'online'); assert.strictEqual(gate.ping, 40);
+  const down = await probeServer(srv, { fetch: async () => { throw new Error('x'); }, tcpPing: async () => null });
+  assert.strictEqual(down.status, 'offline'); assert.strictEqual(down.online, 0);
+  const tw = await probeServer(Object.assign({}, srv, { status: 'maintenance' }), { fetch: async () => { throw new Error('x'); }, tcpPing: async () => null });
+  assert.strictEqual(tw.status, 'maintenance');
 });

@@ -29,7 +29,7 @@ npm run dist            # установщик NSIS (на Windows) -> dist/
 | `docs/` | ARCHITECTURE, DESIGN, API, TASKS, OLD-LAUNCHER |
 
 ## Правила (не нарушать)
-1. **Сеть только в main** (и только к Core API `config.core.url` и статике `config.cdn`). Рендерер под CSP `connect-src 'none'`; `fetch` в `src/renderer` запрещён. Новое действие = канал в `contract.js` → обработчик в `handlers.js` → сервис в main/mock → дубль в `preload/index.js` → `npm test`.
+1. **Сеть только в main** (к Core API `config.core.url`, к статике `config.cdn` и к `/info` игрового сервера — живой онлайн, `data.js`). Рендерер под CSP `connect-src 'none'`; `fetch` в `src/renderer` запрещён. Новое действие = канал в `contract.js` → обработчик в `handlers.js` → сервис в main/mock → дубль в `preload/index.js` → `npm test`.
 2. **Секреты.** Токены (access/refresh) только через `safeStorage` (`session.js`), не в `settings.json`, не в логах (`logger.js` вырезает). Никаких ключей `service_role` в репозитории.
 3. **Внешние ссылки** только через `app:openExternal` с ключом из `config.links` или https-URL с хостом из `externalHostAllowlist`.
 4. **Клиент игры ставит и запускает платформа, а не лаунчер.** Лаунчер скачивает комплект (`client/kit.js`: https из bootstrap, SHA-256, безопасная распаковка) и вызывает установщик платформы тихо через `client/platform.js` (`install`, `connect <адрес> --name`, `repair`, `uninstall`; ход — `%LOCALAPPDATA%\FloVMP\play-status.json`). ScriptHookV, режим без BattlEye, обновление клиента и модов сервера, запуск GTA V — дело платформы; лаунчер сам в папку игры не пишет. Игрок не видит имя платформы: тексты ошибок идут через `brand()`, в интерфейсе её имени нет.

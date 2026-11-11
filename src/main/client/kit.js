@@ -40,7 +40,9 @@ function createKit(deps) {
   /** Нужно ли качать комплект: нет ни одного, или в bootstrap версия новее и установщика платформы на ПК ещё нет. */
   function needed(info, installedExe) {
     if (installedExe) return false;
-    return !current();
+    const have = current();
+    if (!have) return true;
+    return !!(info && info.version && have.version !== 'dev' && cmpVer(have.version, info.version) < 0);
   }
 
   function valid(info) {
@@ -66,7 +68,13 @@ function createKit(deps) {
     const target = verDir(info.version);
     const tmp = `${target}.tmp`;
     fs.rmSync(tmp, { recursive: true, force: true });
-    extract(zipPath, tmp);
+    let unpacked = 0;
+    await extract(zipPath, tmp, {
+      signal: o.signal,
+      onEntry: (n, total) => { unpacked = n; o.onProgress && o.onProgress({ stage: 'unpack', file: '', done: n, total, percent: total ? Math.floor((n / total) * 100) : 0 }); },
+    });
+    if (o.signal && o.signal.aborted) { fs.rmSync(tmp, { recursive: true, force: true }); throw new DlError('cancelled'); }
+    log.info('kit', `распаковано файлов: ${unpacked}`);
     if (!fs.existsSync(path.join(tmp, EXE))) { fs.rmSync(tmp, { recursive: true, force: true }); throw new DlError('manifest_invalid', 'в комплекте нет установщика клиента'); }
     fs.rmSync(target, { recursive: true, force: true });
     fs.renameSync(tmp, target);
@@ -77,17 +85,38 @@ function createKit(deps) {
     return current();
   }
 
-  /** Распаковка с проверкой путей. Архив, собранный в Windows, хранит имена с «\» — приводим к «/». */
-  function extract(zipPath, dest) {
-    const AdmZip = require('adm-zip');
-    const zip = new AdmZip(zipPath);
-    for (const e of zip.getEntries()) {
-      const rel = e.entryName.replace(/\\/g, '/');
-      if (!rel || rel.endsWith('/')) continue;
-      const target = safeJoin(dest, rel);
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, e.getData());
-    }
+  /**
+   * Распаковка с проверкой путей, потоками и без блокировки main-процесса (в комплекте файлы по сотне МБ: синхронная
+   * распаковка держала окно «Не отвечает»). Архив, собранный в Windows, хранит имена с «\» — приводим к «/».
+   */
+  function extract(zipPath, dest, opts) {
+    const o = opts || {};
+    const yauzl = require('yauzl');
+    return new Promise((resolve, reject) => {
+      yauzl.open(zipPath, { lazyEntries: true, decodeStrings: true, strictFileNames: false, validateEntrySizes: true }, (err, zip) => {
+        if (err) return reject(err);
+        const total = zip.entryCount; let n = 0; let failed = false;
+        const bail = (e) => { if (failed) return; failed = true; try { zip.close(); } catch (_) { /* ignore */ } reject(e); };
+        zip.on('error', bail);
+        zip.on('end', () => { if (!failed) resolve(n); });
+        zip.on('entry', (e) => {
+          if (failed) return;
+          if (o.signal && o.signal.aborted) { zip.close(); return resolve(n); }
+          const rel = e.fileName.replace(/\\/g, '/');
+          if (!rel || rel.endsWith('/')) { n++; return zip.readEntry(); }
+          let target;
+          try { target = safeJoin(dest, rel); fs.mkdirSync(path.dirname(target), { recursive: true }); } catch (x) { return bail(x); }
+          zip.openReadStream(e, (e2, rs) => {
+            if (e2) return bail(e2);
+            const ws = fs.createWriteStream(target);
+            rs.on('error', bail); ws.on('error', bail);
+            ws.on('finish', () => { n++; if (o.onEntry) o.onEntry(n, total); zip.readEntry(); });
+            rs.pipe(ws);
+          });
+        });
+        zip.readEntry();
+      });
+    });
   }
 
   /** Старые версии комплекта не нужны: установленный клиент живёт отдельно. */

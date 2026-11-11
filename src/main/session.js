@@ -42,11 +42,15 @@ function createVault(dir, safeStorage) {
  */
 function createAuth(deps) {
   const { oauth, backend, vault, bus, log, openAuth, deviceName, loginTimeoutMs = 10 * 60 * 1000, now = Date.now } = deps;
-  const st = { authed: false, profile: null, offline: false, reason: '', pending: false };
+  // гость: играет без входа в лаунчер (аккаунт создаётся в самой игре), коды и аккаунт недоступны
+  const guestStore = deps.guestStore || { get: () => false, set: () => {} };
+  const st = { authed: false, profile: null, offline: false, reason: '', pending: false, guest: !!guestStore.get() };
   let tokens = null;     // { access, refresh, expiresAt }
   let pending = null;    // { state, verifier, timer }
+  let refreshing = null; // одно общее обновление токена: повтор refresh сервер считает кражей и отзывает сессию
 
-  const publicState = () => ({ authed: st.authed, profile: st.profile, offline: st.offline, reason: st.reason, pending: st.pending });
+  const publicState = () => ({ authed: st.authed, profile: st.profile, offline: st.offline, reason: st.reason, pending: st.pending, guest: !st.authed && st.guest });
+  const setGuest = (v) => { st.guest = !!v; guestStore.set(!!v); };
   const emit = () => bus.emit('auth:changed', publicState());
   const persist = () => { if (tokens) vault.save({ ...tokens, profile: st.profile, at: now() }); };
   const toast = (kind, text) => bus.emit('toast', { kind, text });
@@ -68,10 +72,16 @@ function createAuth(deps) {
   async function ensureAccess() {
     if (!tokens) return fail('invalid_session');
     if (tokens.expiresAt - now() > 60 * 1000) return ok(tokens.access);
-    const r = await oauth.refresh(tokens.refresh);
+    if (!refreshing) {
+      const used = tokens.refresh;
+      refreshing = oauth.refresh(used).then((r) => {
+        if (r.ok && tokens && tokens.refresh === used) { tokens = r.data; persist(); }
+        return r;
+      }).finally(() => { refreshing = null; });
+    }
+    const r = await refreshing;
     if (!r.ok) return r;
-    tokens = r.data; persist();
-    return ok(tokens.access);
+    return tokens ? ok(tokens.access) : fail('invalid_session');
   }
 
   async function loadProfile() {
@@ -152,14 +162,23 @@ function createAuth(deps) {
       const me = await oauth.me(tokens.access);
       if (!me.ok) { tokens = null; toast('err', me.message); return me; }
       st.authed = true; st.offline = false; st.reason = ''; st.profile = backend.fromCore(me.data);
-      persist();
+      setGuest(false); persist();
       log.info('auth', `вход через сайт: ${st.profile.username} (${st.profile.role})`);
+      emit();
+      return ok(publicState());
+    },
+
+    /** «Играть без входа»: главная и запуск игры доступны, коды и аккаунт — после входа. */
+    async guest(on) {
+      setGuest(on !== false);
+      if (st.guest) { clearPending(); st.reason = ''; }
       emit();
       return ok(publicState());
     },
 
     async logout() {
       const refresh = tokens && tokens.refresh;
+      setGuest(false);
       drop('logout');
       if (refresh) oauth.revoke(refresh).catch(() => {}); // в фоне: выход не должен ждать сеть
       return ok(publicState());

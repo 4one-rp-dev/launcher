@@ -21,12 +21,26 @@ win:
   # Подпись кода: задайте CSC_LINK / CSC_KEY_PASSWORD (или win.certificateFile).
   # Без подписи SmartScreen покажет предупреждение.
 nsis:
+  # Мастер установки как у игровых лаунчеров: приветствие -> папка -> установка -> «Запустить 4ONE Launcher».
   oneClick: false
-  perMachine: false
+  perMachine: false                       # в профиль пользователя: без UAC, автообновление без прав администратора
+  allowElevation: true
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: 4ONE Launcher
+  uninstallDisplayName: 4ONE Launcher
+  runAfterFinish: true
+  language: "1049"                        # русский
+  installerLanguages: [ru_RU]
+  multiLanguageInstaller: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
+  include: build/installer.nsh            # при удалении: спросить, стирать ли настройки и скачанный клиент
   deleteAppDataOnUninstall: false
 protocols:
   - name: 4ONE Launcher

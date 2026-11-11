@@ -51,8 +51,13 @@ module.exports = {
     /** Запуск через платформы */
     steamUri: 'steam://rungameid/271590',
     epicUri: 'com.epicgames.launcher://apps/9d2d0eb64d5c44529cece33fe2a46482?action=launch&silent=true',
-    /** Серверный адрес по умолчанию, если в bootstrap нет серверов (dev) */
-    fallbackServer: { id: 'dev', name: '4ONE RP', tag: 'DEV', address: '127.0.0.1:22005', max: 500 },
+    /** Сервер по умолчанию, если Core API недоступен и кэша нет: живой статус всё равно берётся с самого сервера */
+    fallbackServer: { id: 'main', name: '4ONE RP', tag: 'ЗБТ', address: '188.130.132.47:7788', max: 1000 },
+    /** Сколько ждать появления GTA5.exe после команды запуска (магазины бывают медленными) */
+    launchWaitMs: 180000,
+    /** Сервер платформы: вход на порту +10, раздача модов и /info (онлайн) на +20 от адреса из bootstrap */
+    infoPortOffset: 20,
+    gatePortOffset: 10,
   },
 
   /** Куда разрешено уходить по внешним ссылкам из интерфейса (ключ -> URL) */

@@ -9,7 +9,7 @@
 const CHANNELS = [
   'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics',
   'win:minimize', 'win:toggleMaximize', 'win:close',
-  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout',
+  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest',
   'data:bootstrap',
   'servers:select',
   'game:state', 'game:detect', 'game:browse', 'game:setPath',

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawn, execFile } = require('child_process');
+const { decodeConsole } = require('../console-text');
 
 /**
  * Драйвер клиента игры. Установку клиента, ScriptHookV, режим без BattlEye, обновление клиента и модов сервера,
@@ -42,9 +43,9 @@ function createPlatform(deps) {
   function installedExe() {
     return new Promise((resolve) => {
       if (platformName !== 'win32' && !deps.execFile) return resolve(null);
-      execFn('reg', ['query', 'HKCU\\Software\\FloVMP', '/v', 'InstallDir'], { windowsHide: true, timeout: 5000 }, (err, out) => {
+      execFn('reg', ['query', 'HKCU\\Software\\FloVMP', '/v', 'InstallDir'], { windowsHide: true, timeout: 5000, encoding: 'buffer' }, (err, out) => {
         if (err) return resolve(null);
-        const m = /InstallDir\s+REG_SZ\s+(.+)/i.exec(String(out)); if (!m) return resolve(null);
+        const m = /InstallDir\s+REG_SZ\s+(.+)/i.exec(decodeConsole(out)); if (!m) return resolve(null);
         const exe = path.join(m[1].trim(), 'FloVMP.exe');
         resolve(fs.existsSync(exe) ? exe : null);
       });

@@ -1,8 +1,8 @@
 import { bytes, speed, eta, esc } from './ui.js';
 import { t } from './i18n.js';
 
-const stage = (k) => ({ kit: t('Загрузка клиента'), check: t('Проверка клиента'), client: t('Файлы клиента'), mods: t('Моды'), launch: t('Запуск игры') })[k];
-const detail = (p) => `${stage(p.stage) || t('Файлы')}${p.total ? ' · ' + t('{a} из {b}', { a: bytes(p.done), b: bytes(p.total) }) : ''}${p.speed ? ` · ${speed(p.speed)}` : ''}${p.eta ? ' · ' + t('осталось {x}', { x: eta(p.eta) }) : ''}`;
+const stage = (k) => ({ kit: t('Загрузка клиента'), unpack: t('Распаковка клиента'), check: t('Проверка клиента'), client: t('Файлы клиента'), mods: t('Моды'), launch: t('Запуск игры') })[k];
+const detail = (p) => `${stage(p.stage) || t('Файлы')}${p.total ? ' · ' + (p.stage === 'unpack' ? t('{a} из {b} файлов', { a: p.done, b: p.total }) : t('{a} из {b}', { a: bytes(p.done), b: bytes(p.total) })) : ''}${p.speed ? ` · ${speed(p.speed)}` : ''}${p.eta ? ' · ' + t('осталось {x}', { x: eta(p.eta) }) : ''}`;
 
 /**
  * Что показывать на главной кнопке и в строке статуса для текущей фазы игры.

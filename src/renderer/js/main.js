@@ -23,12 +23,16 @@ const ROUTES = {
 };
 const KEYS = ['home', 'news', 'codes', 'account', 'settings'];
 const allowed = (r) => r !== 'admin' || canAdmin(S.auth.profile); // вкладка администрирования — только по праву admin.panel
+/** Внутри лаунчера: вошёл через сайт или играет без входа (гость) */
+export const inside = () => !!(S.auth.authed || S.auth.guest);
+const NEED_LOGIN = new Set(['codes', 'account', 'admin']);
 const view = $('#view');
 let cur = null; let curName = '';
 
 /** go('home') | go('account', { tab: 'wallet' }) | go(route, true) — перерисовать принудительно */
 export function go(route, opt) {
-  const target = S.auth.authed ? (ROUTES[route] && allowed(route) ? route : 'home') : 'login';
+  if (inside() && !S.auth.authed && NEED_LOGIN.has(route)) { askLogin(route); return; }
+  const target = inside() ? (ROUTES[route] && allowed(route) ? route : 'home') : 'login';
   const force = opt === true; const arg = opt && typeof opt === 'object' ? opt : {};
   if (target === curName && !force && !arg.tab) return;
   if (cur && cur.destroy) cur.destroy();
@@ -72,7 +76,7 @@ function syncRail() {
     if (S.route === k) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
   $('#rail-av', rail).textContent = (name || '?').trim().charAt(0).toUpperCase() || '?';
-  $('#me-name', rail).textContent = name || t('Аккаунт');
+  $('#me-name', rail).textContent = name || (S.auth.authed ? t('Аккаунт') : t('Войти'));
   $('#me-sub', rail).innerHTML = p ? `<span class="n">${num(p.balance4c)}</span><span class="u"> 4Coin</span>` : '';
   const unread = S.settings.newsBadge === false ? 0 : (S.data && S.data.news || []).filter((n) => (n.date || '') > (S.settings.lastSeenNews || '')).length;
   const nb = $('[data-go=news] .bd', rail); nb.hidden = !unread || S.route === 'news'; nb.textContent = String(unread);
@@ -90,8 +94,30 @@ function moveInd() {
 delegate($('#rail'), 'click', '[data-go]', (el) => go(el.dataset.go));
 delegate($('#rail'), 'click', '[data-act=profile]', () => openProfile());
 
+/** Гость открыл раздел, где нужен аккаунт: предлагаем войти. */
+async function askLogin(route) {
+  const v = await modal({
+    title: t('Нужен вход'), icon: 'userc',
+    body: `<p>${route === 'codes' ? t('Промокоды зачисляются на аккаунт — войдите, чтобы их активировать.') : t('Раздел доступен после входа в аккаунт.')}</p>
+      <p class="mut">${t('Аккаунта ещё нет? Нажмите «Играть» и зарегистрируйтесь в игре, затем войдите здесь с тем же логином и паролем.')}</p>`,
+    buttons: [{ label: t('Позже'), value: 'no', cls: 'g' }, { label: t('Войти через сайт'), value: 'login' }],
+  });
+  if (v === 'login') { const r = await call('auth:login'); if (!r.ok) toast('err', r.message); }
+}
+
 /** Профиль: имя, роль в проекте («Игрок» / «Администратор n уровня»), баланс; переходы в аккаунт, администрирование, выход. */
 async function openProfile() {
+  if (!S.auth.authed && S.auth.guest) {
+    const v = await modal({
+      title: t('Вы играете без входа'), icon: 'userc',
+      body: `<p>${t('Войдите, чтобы видеть баланс 4Coin, активировать коды и управлять аккаунтом.')}</p>
+        <p class="mut">${t('Аккаунта ещё нет? Нажмите «Играть» и зарегистрируйтесь в игре, затем войдите здесь с тем же логином и паролем.')}</p>`,
+      buttons: [{ label: t('К экрану входа'), value: 'exit', cls: 'g' }, { label: t('Войти через сайт'), value: 'login' }],
+    });
+    if (v === 'login') { const r = await call('auth:login'); if (!r.ok) toast('err', r.message); }
+    else if (v === 'exit') call('auth:guest', false);
+    return;
+  }
   const p = S.auth.profile; if (!p) return;
   const name = p.gameName || p.nickname || p.username || '';
   const buttons = [{ label: t('Выйти'), value: 'logout', cls: 'g' }];
@@ -144,12 +170,16 @@ function applyLook(s) {
 window.addEventListener('resize', () => { applyScale(S.settings.scale); requestAnimationFrame(moveInd); });
 
 on('auth:changed', (a) => {
-  const was = S.auth.authed;
+  const was = inside();
   patch({ auth: a }, 'auth');
-  if (!a.authed) {
+  if (!a.authed && a.guest) {
+    if (!was) loadData(true).then(() => go('home', true));
+    else if (NEED_LOGIN.has(S.route)) go('home', true);
+    else if (cur && cur.update) cur.update(S, 'auth');
+  } else if (!a.authed) {
     if (a.reason && a.reason !== 'logout') toast('warn', { invalid_session: t('Сессия недействительна. Войдите заново.'), session_revoked: t('Сессия отозвана. Войдите заново.'), session_expired: t('Сессия истекла. Войдите заново.'), launcher_access_denied: t('Доступ к лаунчеру не выдан.') }[a.reason] || t('Войдите заново.'));
     go('login', true);
-  } else if (!was) { loadData(true).then(() => go('home', true)); }
+  } else if (!was || !S.auth.profile || S.route === 'login') { loadData(true).then(() => go('home', true)); }
   else if (cur && cur.update) cur.update(S, 'auth');
 });
 on('game:state', (g) => patch({ game: g }, 'game'));
@@ -169,7 +199,7 @@ function renderVer() { const i = S.info || {}; $('#ver').textContent = 'v' + (i.
 export function applyLang(l) {
   if (l === getLang() && S.booted) return;
   setLang(l); applyStatic(); renderVer(); renderUpdateBanner(S.update || { state: 'idle' });
-  if (S.booted) { patch({}, 'lang'); if (S.auth.authed) loadData(false); go(S.route, true); }
+  if (S.booted) { patch({}, 'lang'); if (inside()) loadData(false); go(S.route, true); }
 }
 window.addEventListener('l4:lang', (e) => applyLang(e.detail));
 
@@ -202,7 +232,7 @@ $('#wb-close').addEventListener('click', () => call('win:close'));
 $('#titlebar').addEventListener('dblclick', (e) => { if (!e.target.closest('.tb-win')) call('win:toggleMaximize'); });
 document.addEventListener('contextmenu', (e) => { if (!e.target.closest('input,textarea')) e.preventDefault(); });
 document.addEventListener('keydown', (e) => {
-  if (!e.ctrlKey || e.altKey || e.shiftKey || !S.auth.authed) return;
+  if (!e.ctrlKey || e.altKey || e.shiftKey || !inside()) return;
   const k = KEYS[Number(e.key) - 1];
   if (k) { e.preventDefault(); go(k); }
 });
@@ -214,7 +244,10 @@ document.addEventListener('keydown', (e) => {
     info: info.data, auth: auth.data, settings: st.data || {}, game: game.data, booted: true,
   }, 'boot');
   setLang(S.settings.lang); applyStatic(); renderVer();
-  if (S.auth.authed) { await loadData(false); if (S.auth.offline) patch({ net: false }); go('home'); } else go('login');
+  if (inside()) { await loadData(false); if (S.auth.offline) patch({ net: false }); go('home'); } else go('login');
 })();
+
+// онлайн и статус серверов обновляются раз в минуту, пока лаунчер внутри
+setInterval(() => { if (S.booted && inside() && !document.hidden) loadData(false); }, 60 * 1000);
 
 window.__l4 = { S, go }; // для отладки и скриншотов

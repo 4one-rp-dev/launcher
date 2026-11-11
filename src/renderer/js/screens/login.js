@@ -1,7 +1,6 @@
 import { call } from '../api.js';
 import { S } from '../state.js';
 import { $, esc, ic, toast } from '../ui.js';
-import { openExt } from '../actions.js';
 import { t, getLang } from '../i18n.js';
 
 // причины выхода: тексты те же, что у ошибок сессии в core/contract.js (перевод уже есть)
@@ -29,7 +28,10 @@ export function mount(root) {
       </div>
       ${reason && REASONS[reason] ? `<div class="lg-note in" style="--i:1">${ic('alert')}<span>${esc(t(REASONS[reason]))}</span></div>` : ''}
       <div class="lg-form in" style="--i:2" id="lg-box"></div>
-      <p class="lg-foot in" style="--i:3">${t('Нет аккаунта? ')}<button class="link" data-act="reg">${t('Зарегистрироваться на сайте')}</button></p>
+      <div class="lg-guest in" style="--i:3">
+        <p>${t('Нет аккаунта? Регистрация — в самой игре: нажмите «Играть без входа», а потом войдите в лаунчер с тем же логином и паролем.')}</p>
+        <button class="bt g wide" data-act="guest">${ic('gamepad')}${t('Играть без входа')}</button>
+      </div>
       ${S.info && S.info.mock ? `<p class="lg-demo">${t('Демо-режим: вход произойдёт сам')}</p>` : ''}
     </div>
   </div>`;
@@ -62,7 +64,7 @@ export function mount(root) {
     if (lg) { call('settings:set', { lang: lg.dataset.lang }).then(() => window.dispatchEvent(new CustomEvent('l4:lang', { detail: lg.dataset.lang }))); return; }
     if (e.target.closest('#go')) return start();
     const a = e.target.closest('[data-act]'); if (!a) return;
-    if (a.dataset.act === 'reg') openExt('site');
+    if (a.dataset.act === 'guest') { const r = await call('auth:guest', true); if (!r.ok) toast('err', r.message); }
     if (a.dataset.act === 'cancel') await call('auth:cancel');
     if (a.dataset.act === 'again') { const r = await call('auth:login'); if (!r.ok) toast('err', r.message); }
   });

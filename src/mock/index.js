@@ -80,7 +80,7 @@ function createMock(opts) {
     ],
   };
   const profile = () => Object.assign({}, PROFILE, roleOf(S.alvl), { balance4c: S.balance });
-  const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending });
+  const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending, guest: !S.authed && !!S.guest });
 
   // ---- настройки
   const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true };
@@ -129,7 +129,7 @@ function createMock(opts) {
     async cancel() { cancelled = true; return ok(); },
     async uninstall() { G.client.installed = false; G.phase = 'not-installed'; pub(); return ok(game.getState()); },
     async play() {
-      if (!S.authed) return fail('invalid_session');
+      if (!S.authed && !S.guest) return fail('invalid_session');
       if (G.phase !== 'ready') { const r = await simulateInstall(G.phase === 'needs-update' ? 86 * MB : TOTAL, false); if (!r) return fail('cancelled'); }
       G.phase = 'launching'; G.progress = null; pub(); await delay(1600);
       G.phase = 'ingame'; G.running = true; pub();
@@ -145,11 +145,12 @@ function createMock(opts) {
     /** Демо: «браузер» открывается и через секунду возвращает вход */
     async login() {
       S.pending = true; bus.emit('auth:changed', authState());
-      setTimeout(() => { if (!S.pending) return; S.pending = false; S.authed = true; S.offline = false; bus.emit('auth:changed', authState()); }, 900);
+      setTimeout(() => { if (!S.pending) return; S.pending = false; S.authed = true; S.guest = false; S.offline = false; bus.emit('auth:changed', authState()); }, 900);
       return ok(authState());
     },
     async cancel() { S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
-    async logout() { S.authed = false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
+    async logout() { S.authed = false; S.guest = false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
+    async guest(on) { S.guest = on !== false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
   };
   const data = {
     async bootstrap() {

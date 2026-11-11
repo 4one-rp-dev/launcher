@@ -36,7 +36,7 @@ const bus = {
   on(ev, f) { (subs[ev] = subs[ev] || []).push(f); },
 };
 
-function showWindow() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+function showWindow() { if (!win || win.isDestroyed()) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 function dispatchDeepLink(raw) {
   const link = typeof raw === 'string' ? parseDeepLink(raw) : raw;
   if (!link) return log.warn('deeplink', 'отклонена ссылка');
@@ -67,13 +67,15 @@ function createWindow(settings) {
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.on('close', (e) => {
     if (quitting) return;
-    if (settings.get().minimizeToTray && tray) { e.preventDefault(); win.hide(); }
+    if (settings.get().minimizeToTray && tray) { e.preventDefault(); win.hide(); return; }
+    quitting = true; // без трея закрытие окна = выход: иначе процесс остаётся и держит блокировку одного экземпляра
   });
   win.webContents.on('did-finish-load', () => { if (pendingLink && pendingLink.type !== 'auth-callback') { const l = pendingLink; pendingLink = null; bus.emit('deeplink', l); } });
   win.loadFile(RENDERER);
   if (config.devtools) win.webContents.openDevTools({ mode: 'detach' });
 }
 
+function destroyTray() { if (tray) { try { tray.destroy(); } catch (_) { /* ignore */ } tray = null; } }
 function createTray(lang) {
   try {
     const img = nativeImage.createFromPath(path.join(__dirname, '..', '..', 'build', 'icon.png')).resize({ width: 18, height: 18 });
@@ -157,17 +159,21 @@ function buildServices(settings) {
   const oauth = createOAuthClient({ log });
   const auth = createAuth({
     oauth, backend, vault, bus, log, openAuth: appSvc.openAuth, loginTimeoutMs: config.core.loginTimeoutMs,
+    guestStore: { get: () => settings.get().guest, set: (v) => { settings.set({ guest: v }); } },
     deviceName: `${require('os').hostname()} · ${process.platform === 'win32' ? 'Windows' : process.platform}`,
   });
   authRef = auth;
   authHandler = (link) => { auth.handleCallback(link).catch((e) => log.error('auth', e.stack || e)); };
-  const data = createData({ backend, auth, settings, log });
+  const runner = createRunner({ shell, log });
+  const data = createData({ backend, auth, settings, log, tcpPing: runner.tcpPing, onLinks: security.setLinks, linkKeys: security.configuredLinks });
   const codes = createCodes({ backend, auth, log });
   const account = createAccount({ backend, auth });
   const platform = createPlatform({ log });
-  const kit = createKit({ dir: path.join(userData, 'client-kit'), log, devDir: process.env.L4_KIT_DIR || '' });
-  const runner = createRunner({ shell, log });
-  game = createGame({ settings, data, auth, platform, kit, runner, bus, log, dialog: { pickFolder: pick } });
+  // комплект (~400 МБ) — в Local, а не в Roaming: Roaming синхронизируется в доменных сетях и не для кэша
+  const kitDir = path.join(process.env.LOCALAPPDATA || userData, '4ONE Launcher', 'client-kit');
+  const kit = createKit({ dir: kitDir, log, devDir: process.env.L4_KIT_DIR || '' });
+  let guestName = ''; try { guestName = require('os').userInfo().username; } catch (_) { /* нет имени */ }
+  game = createGame({ settings, data, auth, platform, kit, runner, bus, log, guestName, dialog: { pickFolder: pick } });
   const updater = createUpdater({ bus, log, app, settings });
   return { app: appSvc, win: realWin, auth, data, game, codes, account, settings, updater, log };
 }
@@ -176,7 +182,10 @@ function buildServices(settings) {
 app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   const settings = createSettings(userData, {
-    onChange: (cur, prev) => { if (cur.lang !== prev.lang && tray) createTray(cur.lang); if (cur.autostart !== prev.autostart && app.isPackaged) app.setLoginItemSettings({ openAtLogin: cur.autostart }); },
+    onChange: (cur, prev) => {
+      if (cur.minimizeToTray !== prev.minimizeToTray) { if (cur.minimizeToTray) createTray(cur.lang); else destroyTray(); }
+      else if (cur.lang !== prev.lang && tray) createTray(cur.lang);
+      if (cur.autostart !== prev.autostart && app.isPackaged) app.setLoginItemSettings({ openAtLogin: cur.autostart }); },
   });
   const services = buildServices(settings);
   const handlers = createHandlers(services);
@@ -198,11 +207,10 @@ app.whenReady().then(async () => {
 
   // последовательность запуска: сессия -> данные -> игра -> обновления
   const boot = async () => {
-    const st = config.mock ? services.auth.state() : await services.auth.restore();
-    if (st.authed) {
-      const r = await services.data.bootstrap(true);
-      bus.emit('net:state', { online: r.ok || (r.code !== 'network_error' && r.code !== 'timeout') });
-    }
+    if (!config.mock) await services.auth.restore();
+    // каталог публичный: нужен и гостю (сервер, клиент), и до входа
+    const r = await services.data.bootstrap(true);
+    bus.emit('net:state', { online: r.ok || (r.code !== 'network_error' && r.code !== 'timeout') });
     if (services.game.init) await services.game.init();
     if (!config.mock) services.updater.autoCheck();
   };
@@ -219,4 +227,4 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => { quitting = true; });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin' && quitting) app.quit(); });
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

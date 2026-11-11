@@ -2,18 +2,55 @@
 const { fail, ok } = require('../core/contract');
 const config = require('./config');
 
+/** Адрес host:port -> { host, port } */
+function splitAddr(a) { const m = /^([^:\s]+):(\d{1,5})$/.exec(String(a || '')); return m ? { host: m[1], port: Number(m[2]) } : null; }
+
+/**
+ * Живой статус игрового сервера: онлайн и максимум — из /info платформы (порт +20), пинг — время ответа.
+ * Если /info молчит, пробуем вход (порт +10): открыт — сервер жив, но без счётчика; закрыт — «недоступен».
+ */
+async function probeServer(server, deps) {
+  const a = splitAddr(server.address); if (!a) return server;
+  const G = config.game; const doFetch = deps.fetch || globalThis.fetch;
+  const t0 = Date.now();
+  try {
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 3500);
+    const r = await doFetch(`http://${a.host}:${a.port + G.infoPortOffset}/info`, { signal: ctl.signal, headers: { Accept: 'application/json' } }).finally(() => clearTimeout(timer));
+    if (r.ok) {
+      const j = await r.json();
+      const live = { ping: Date.now() - t0, live: true };
+      if (Number.isFinite(j.players)) live.online = j.players;
+      if (Number.isFinite(j.maxPlayers) && j.maxPlayers > 0) live.max = j.maxPlayers;
+      if (server.status !== 'maintenance') live.status = 'online';
+      return Object.assign({}, server, live);
+    }
+  } catch (_) { /* нет ответа — проверим вход */ }
+  const ping = deps.tcpPing ? await deps.tcpPing(`${a.host}:${a.port + G.gatePortOffset}`, 3000) : null;
+  if (ping != null) return Object.assign({}, server, { ping, live: true, status: server.status === 'maintenance' ? 'maintenance' : 'online' });
+  return Object.assign({}, server, { ping: null, live: true, online: 0, status: server.status === 'maintenance' ? 'maintenance' : 'offline' });
+}
+
 /** Серверы, новости, клиент: bootstrap с кэшем и запасным вариантом, если сети нет */
 function createData(deps) {
   const { backend, auth, settings, log } = deps;
-  let cache = null; let at = 0;
+  let cache = null; let at = 0; let live = {}; // live — последний опрос серверов по id
   const TTL = 60 * 1000;
 
+  async function probeAll(servers) {
+    const probe = deps.probe || probeServer;
+    const res = await Promise.all(servers.map((s) => probe(s, deps).catch(() => s)));
+    live = {}; for (const s of res) live[s.id] = s;
+  }
+
   function view(d, stale) {
-    const servers = d.servers && d.servers.length ? d.servers : [Object.assign({ status: 'offline', online: 0, version: '', description: '' }, config.game.fallbackServer)];
+    const base = d.servers && d.servers.length ? d.servers : [Object.assign({ status: 'offline', online: 0, version: '', description: '' }, config.game.fallbackServer)];
+    const servers = base.map((s) => (live[s.id] ? Object.assign({}, s, pick(live[s.id])) : s));
     let sel = settings.get().selectedServerId;
     if (!servers.find((s) => s.id === sel)) sel = servers[0].id;
+    const flags = d.flags || {};
+    if (deps.onLinks) deps.onLinks(flags.links);
     return {
-      servers, news: d.news || [], client: d.client || null, flags: d.flags || {},
+      servers, news: d.news || [], client: d.client || null, flags, links: deps.linkKeys ? Object.keys(deps.linkKeys()) : null,
       notice: d.notice || null, selectedServerId: sel, fetchedAt: at, stale: !!stale,
     };
   }
@@ -24,10 +61,12 @@ function createData(deps) {
       const r = await backend.bootstrap();
       if (!r.ok) {
         auth.onFatal(r.code);
+        await probeAll((cache && cache.servers && cache.servers.length) ? cache.servers : [config.game.fallbackServer]);
         if (cache) return ok(view(cache, true));
-        return r.code === 'network_error' || r.code === 'timeout' ? r : ok(view({}, true));
+        return ok(view({}, true)); // Core API недоступен: сервер по умолчанию с живым статусом, играть можно
       }
       cache = r.data; at = Date.now();
+      await probeAll(r.data.servers || []);
       if (r.data.profile) auth.setProfile(r.data.profile);
       log.info('data', `bootstrap: серверов ${r.data.servers.length}, новостей ${r.data.news.length}`);
       return ok(view(cache, false));
@@ -43,6 +82,8 @@ function createData(deps) {
     clientInfo() { return cache && cache.client || null; },
   };
 }
+
+const pick = (s) => ({ status: s.status, online: s.online, max: s.max, ping: s.ping, live: s.live });
 
 function createCodes(deps) {
   const { backend, auth, log } = deps;
@@ -84,4 +125,4 @@ function createAccount(deps) {
   };
 }
 
-module.exports = { createData, createCodes, createAccount };
+module.exports = { createData, createCodes, createAccount, probeServer, splitAddr };

@@ -50,6 +50,7 @@ function createHandlers(s) {
     'auth:login': async () => s.auth.login(),
     'auth:cancel': async () => s.auth.cancel(),
     'auth:logout': async () => s.auth.logout(),
+    'auth:guest': async (on) => s.auth.guest(on !== false),
 
     'data:bootstrap': async (force) => s.data.bootstrap(!!force),
 

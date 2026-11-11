@@ -17,6 +17,7 @@ const SCHEMA = {
   scale: { type: 'string', def: 'auto', enum: ['auto', '90', '100', '110', '125', '150'] }, // масштаб интерфейса
   animations: { type: 'boolean', def: true },    // выключить — без анимаций и переходов
   toasts: { type: 'boolean', def: true },        // информационные всплывашки (ошибки показываются всегда)
+  guest: { type: 'boolean', def: false },       // играть без входа (до регистрации в игре)
   newsBadge: { type: 'boolean', def: true },     // счётчик непрочитанных новостей     // violet | mint | rose | sky — акцент интерфейса
 };
 
@@ -61,7 +62,7 @@ function createSettings(dir, hooks) {
     },
     /** Сброс интерфейсных и игровых настроек; путь к GTA, выбранный сервер и счётчики остаются */
     async reset() {
-      const keep = {}; for (const k of ['gamePath', 'selectedServerId', 'lastSeenNews', 'playMinutes']) keep[k] = cur[k];
+      const keep = {}; for (const k of ['gamePath', 'selectedServerId', 'lastSeenNews', 'playMinutes', 'guest']) keep[k] = cur[k];
       const before = cur; cur = Object.assign(defaults(), keep);
       clearTimeout(timer); timer = setTimeout(flush, 150);
       if (hooks && hooks.onChange) hooks.onChange(cur, before);

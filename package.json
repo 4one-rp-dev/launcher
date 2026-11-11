@@ -1,7 +1,7 @@
 {
   "name": "4one-launcher",
   "productName": "4ONE Launcher",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Лаунчер 4ONE RP: вход по коду с сайта, установка клиента, запуск GTA V",
   "author": "4ONE RP",
   "license": "UNLICENSED",
@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "yauzl": "^3.4.0"
   },
   "devDependencies": {
     "@phosphor-icons/core": "^2.1.1",

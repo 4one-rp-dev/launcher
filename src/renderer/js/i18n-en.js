@@ -223,4 +223,17 @@ export const EN = {
   'Не удалось войти. Нажмите «Войти» и повторите.': 'Could not sign in. Press “Sign in” and try again.',
   'Недостаточно прав.': 'Not enough permissions.',
   'Вход не завершён. Нажмите «Войти» и повторите.': 'Sign-in was not completed. Press “Sign in” and try again.',
+  // гостевой режим и распаковка (ноябрь 2026)
+  'Распаковка клиента': 'Unpacking the client',
+  '{a} из {b} файлов': '{a} of {b} files',
+  'Нужен вход': 'Sign-in required',
+  'Промокоды зачисляются на аккаунт — войдите, чтобы их активировать.': 'Promo codes are credited to an account — sign in to redeem them.',
+  'Раздел доступен после входа в аккаунт.': 'This section is available after you sign in.',
+  'Аккаунта ещё нет? Нажмите «Играть» и зарегистрируйтесь в игре, затем войдите здесь с тем же логином и паролем.': 'No account yet? Press “Play” and register in the game, then sign in here with the same login and password.',
+  'Позже': 'Later',
+  'Вы играете без входа': 'You are playing without signing in',
+  'Войдите, чтобы видеть баланс 4Coin, активировать коды и управлять аккаунтом.': 'Sign in to see your 4Coin balance, redeem codes and manage your account.',
+  'К экрану входа': 'Back to sign-in',
+  'Нет аккаунта? Регистрация — в самой игре: нажмите «Играть без входа», а потом войдите в лаунчер с тем же логином и паролем.': 'No account? Registration happens in the game: press “Play without signing in”, then sign in to the launcher with the same login and password.',
+  'Играть без входа': 'Play without signing in',
 };

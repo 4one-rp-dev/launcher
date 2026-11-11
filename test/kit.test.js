@@ -29,7 +29,7 @@ test('ensure: скачивает, сверяет SHA-256, распаковыва
   const k = await kit.ensure(info, { onProgress: (p) => prog.push(p) });
   assert.strictEqual(fs.readFileSync(k.exe, 'utf8'), 'EXE');
   assert.strictEqual(fs.readFileSync(path.join(k.dir, 'FloVMP', 'cef', 'libcef.dll'), 'utf8'), 'DLL');
-  assert.ok(prog.length && prog[prog.length - 1].stage === 'kit');
+  assert.ok(prog.some((p) => p.stage === 'kit') && prog[prog.length - 1].stage === 'unpack');
   assert.strictEqual(kit.current().version, '1.1.1');
   assert.ok(!fs.readdirSync(dir).some((n) => n.endsWith('.zip') || n.endsWith('.tmp')), 'временные файлы убраны');
 });
@@ -86,3 +86,12 @@ test('devDir (L4_KIT_DIR): берёт готовую папку и ничего 
 });
 
 test('cmpVer', () => { assert.strictEqual(cmpVer('1.1.2', '1.1.10'), -1); assert.strictEqual(cmpVer('1.2', '1.2.0'), 0); assert.strictEqual(cmpVer('2', '1.9.9'), 1); });
+
+test('needed: свой комплект старее, чем в bootstrap, и платформы на ПК нет — качать', async () => {
+  const dir = tmp(); const z1 = makeZip({ 'FloVMP.exe': 'v1' });
+  const kit = createKit({ dir, log, fetch: serve(z1) });
+  await kit.ensure({ version: '1.1.1', kitUrl: 'https://c/k.zip', kitSha256: sha(z1) });
+  assert.strictEqual(kit.needed({ version: '1.1.1' }, null), false);
+  assert.strictEqual(kit.needed({ version: '1.1.3' }, null), true);
+  assert.strictEqual(kit.needed({ version: '1.1.3' }, 'C:/x/FloVMP.exe'), false);
+});

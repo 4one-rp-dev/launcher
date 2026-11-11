@@ -1,4 +1,5 @@
 *{box-sizing:border-box}
+[hidden]{display:none!important} /* атрибут hidden сильнее любых display у компонентов (иначе вкладка «Администрирование» видна всем) */
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font-family:var(--sans);font-weight:500;font-size:14px;line-height:1.4;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;user-select:none;-webkit-user-select:none}
 button{font-family:inherit;color:inherit;cursor:pointer}
 input,textarea{font-family:inherit;user-select:text;-webkit-user-select:text}

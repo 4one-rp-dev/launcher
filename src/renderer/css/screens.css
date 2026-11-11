@@ -32,6 +32,8 @@
 .lg-form{display:flex;flex-direction:column;gap:10px}
 .lg-form .field-msg{min-height:18px;text-align:center}
 .lg-foot{text-align:center;color:var(--t3);font-size:13px}
+.lg-guest{display:flex;flex-direction:column;gap:12px;padding-top:4px;border-top:1px solid var(--line, rgba(255,255,255,.06))}
+.lg-guest p{margin:12px 0 0;text-align:center;color:var(--t3);font-size:13px;line-height:1.5;text-wrap:pretty}
 .lg-demo{text-align:center;color:var(--t3);font-size:12px}
 .lg-wait{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;padding:6px 0 2px}
 .lg-wait b{font-size:14px}.lg-wait small{color:var(--t3);font-size:12.5px;line-height:1.45}

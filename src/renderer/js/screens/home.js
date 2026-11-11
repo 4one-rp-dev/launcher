@@ -10,7 +10,9 @@ import { zoomNow } from '../scale.js';
 const HUES = ['#b9a3ff', '#9fd4b4', '#f0a0b4', '#9cc4f5', '#dcc49c'];
 export const hueOf = (id) => HUES[[...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % HUES.length];
 
-const LINKS = () => [['discord', 'discord', 'Discord'], ['site', 'globe', t('Сайт')], ['donate', 'coin', t('Донат')], ['kb', 'doc', t('Правила')]];
+// показываем только настроенные на сервере ссылки (data.links); в демо и без данных — все
+const LINKS = () => [['discord', 'discord', 'Discord'], ['site', 'globe', t('Сайт')], ['donate', 'coin', t('Донат')], ['kb', 'doc', t('Правила')]]
+  .filter(([k]) => !(S.data && Array.isArray(S.data.links)) || S.data.links.includes(k));
 const NOTICE = () => ({
   'no-gta': ['folder', t('Ещё нет GTA V?'), t('Нужна GTA V Legacy из Rockstar Games Launcher, Steam или Epic Games. Уже установлена — укажите её папку.')],
   unsupported: ['alert', t('Нужна GTA V Legacy'), t('Найдена другая версия игры. Проект работает на GTA V Legacy 1.0.3889.0 — укажите её папку.')],
