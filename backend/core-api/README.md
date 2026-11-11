@@ -4,7 +4,7 @@
 Node 20+, одна зависимость (`mysql2`). Supabase и БД платформы FloV:MP **не используются**.
 
 ## Одна БД
-Всё лежит в **одной базе — игровой MariaDB `ra3_main`**:
+Всё лежит в **одной базе — игровой MariaDB `ra3main`**:
 
 | Что | Где |
 |---|---|
@@ -14,7 +14,7 @@ Node 20+, одна зависимость (`mysql2`). Supabase и БД плат�
 | OAuth-сессии, серверы, новости, промокоды, кошелёк, история входов | свои таблицы `core_*` (`sql/`) |
 
 БД платформы FloV:MP (`flovmp_server`) — это отдельный продукт со своими правами; API с ней не работает, уровни не синхронизируются.
-API **не пишет** в таблицы игры (пароли, уровни, баланс): только в свои `core_*`.
+API **не меняет** строки игры (пароли, уровни, баланс): пишет в свои `core_*`. Единственное исключение — регистрация: `INSERT` новой строки `accounts` в том же виде, что делает игра (`sql/004_signup.sql`).
 
 ## Запуск за 5 минут
 **Без БД (для разработки сайта и лаунчера):**
@@ -30,7 +30,8 @@ npm run migrate        # создаёт core_* и колонку accounts.alvl (
 npm run doctor         # проверка настроек и БД: ✔/✖ по каждому пункту
 npm start
 ```
-Пользователь БД для работы API (права только на нужное) — в конце `sql/001_core_api.sql` и `sql/002_content.sql`. Первый владелец: `UPDATE accounts SET alvl = 8 WHERE login = '…';` (или `scripts/db/make-owner.sql` в gamemod).
+Пользователь БД для работы API (права только на нужное) — в конце `sql/001_core_api.sql`, `002_content.sql`, `003_mfa.sql` и `004_signup.sql` (для регистрации: `GRANT INSERT ON ra3main.accounts`).
+Стартовые значения нового аккаунта (как `MoneySettings` игры): `CORE_SIGNUP_REDBUCKS` — 4Coin, `CORE_SIGNUP_VIP_LVL` — уровень VIP, `CORE_SIGNUP_VIP_DAYS` — дней VIP; по умолчанию 0. Первый владелец: `UPDATE accounts SET alvl = 8 WHERE login = '…';` (или `scripts/db/make-owner.sql` в gamemod).
 
 ## Роли
 `role.title`: «Игрок» (alvl 0) или «Администратор n уровня»; `role.rank` — ранг из игры (`Core/AdminRanks.cs`). `permissions[]` — права по уровню (`src/roles.js`):
@@ -43,6 +44,7 @@ npm start
 | `GET /oauth/authorize` | страница входа (HTML) в браузере. Параметры: `response_type=code`, `client_id`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, необязательно `device_name` |
 | `POST /oauth/authorize` | форма; успех → возврат на `redirect_uri?code=…&state=…`. Если у аккаунта включена 2FA — вместо возврата страница второго шага (поле кода, подписанный `mtx` на 5 минут); её POST `{mtx, code}` на тот же адрес → обычный возврат с кодом |
 | `POST /v1/auth/login` `{client_id, login, password, device_name}` | прямой вход (только клиенты с `trusted: true`). Без 2FA → те же токены, что `/oauth/token`; с 2FA → `{mfa_required:true, mfa_token, methods:['totp','backup']}` (токен 5 минут, сессии ещё нет). Ошибки: `invalid_client` 400, `invalid_credentials` 401, `rate_limited` 429 |
+| `POST /v1/auth/register` `{client_id, login, email, password, promo?, device_name}` | регистрация игрового аккаунта (только `trusted: true`). Проверки и тексты ошибок — как в игре (`Accounts/Registration/Repository.cs`): логин `^[A-Za-z][A-Za-z0-9_]{2,23}$`, пароль 8–64 печатных ASCII без пробелов с буквой и цифрой, почта до 64 знаков, промокод `^[A-Za-z0-9_-]{1,16}$`. Как игра, логин, почта и промокод сохраняются в нижнем регистре, пустой промокод — `noref`; SocialClub и HWID пустые (игра привяжет при первом входе). Успех — **201** и те же токены, что у `/v1/auth/login` (сессия, событие входа). Ошибки: `invalid_client` 400; `invalid_login`/`invalid_password`/`invalid_email`/`invalid_promo` 400; `login_taken`/`email_taken` 409 (без учёта регистра); `rate_limited` 429 (3 регистрации и 20 попыток с IP за час) |
 | `POST /v1/auth/mfa` `{client_id, mfa_token, code}` | второй шаг: 6 цифр TOTP или резервный `XXXX-XXXX` (регистр и дефис не важны) → токены. Ошибки: `invalid_mfa_code` 401, `mfa_expired` 400 (истёк, подделан, другой клиент, 5 неверных попыток на токен), `rate_limited` 429 (10 неверных кодов на логин за 10 минут) |
 | `POST /oauth/token` | `authorization_code` (+`code_verifier`) или `refresh_token` → `{ access_token, refresh_token, expires_in:900 }` |
 | `POST /oauth/revoke` | отзыв по access- или refresh-токену |

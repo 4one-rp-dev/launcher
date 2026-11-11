@@ -140,3 +140,11 @@
 .acc-srv svg.i{width:16px;height:16px}
 .acc{flex-wrap:wrap;justify-content:flex-end}
 .lg-fields .inp{border-color:var(--line2)}
+
+.fld-h{font-size:11.5px;color:var(--t3);line-height:1.35}
+.fld > span:first-child em{font-style:normal;font-weight:500;color:var(--t3);margin-left:4px}
+.lg-foot .link{font-weight:700}
+.lg-fields.reg{gap:9px}
+.lg-fields.reg .inp{height:40px;font-size:14px}
+.fld-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lg-fields.reg .fld{gap:5px}

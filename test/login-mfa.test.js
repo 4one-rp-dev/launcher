@@ -51,3 +51,17 @@ test('2FA: подключение в аккаунте, затем вход с к
   assert.strictEqual((await w.auth.submitMfa(backup)).code, 'invalid_mfa_code');
   await w.auth.cancelMfa(); assert.strictEqual(w.auth.state().mfa, false);
 });
+
+test('регистрация из лаунчера: аккаунт в игровой базе, вход сразу; повтор логина — занят', async () => {
+  const w = world();
+  const r = await w.auth.register({ login: 'Newbie_1', email: 'new@mail.ru', password: 'Qwerty123', promo: '' });
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.strictEqual(w.auth.state().authed, true);
+  assert.strictEqual(w.auth.state().profile.username.toLowerCase(), 'newbie_1');
+  const acc = await w.store.findAccount('newbie_1');
+  assert.ok(acc && acc.passwordHash.startsWith('p2$'), 'хеш в формате игры');
+  await w.auth.logout();
+  assert.strictEqual((await w.auth.register({ login: 'NEWBIE_1', email: 'other@mail.ru', password: 'Qwerty123' })).code, 'login_taken');
+  assert.strictEqual((await w.auth.register({ login: 'Other_2', email: 'NEW@mail.ru', password: 'Qwerty123' })).code, 'email_taken');
+  assert.ok((await w.auth.passwordLogin('Newbie_1', 'Qwerty123')).ok, 'вход тем же паролем');
+});

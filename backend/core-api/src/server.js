@@ -147,6 +147,13 @@ function createApp({ store, config, now }) {
       const r = path === '/v1/auth/login' ? await oauth.directLogin(body, { ip: ipOf(req) }) : await oauth.directMfa(body, { ip: ipOf(req) });
       return send(res, r.status, r.body);
     }
+    // ---- регистрация игрового аккаунта (строка в accounts как у игры) и сразу вход
+    if (path === '/v1/auth/register' && method === 'POST') {
+      const body = parseBody(req, await readBody(req));
+      if (!body) return apiError(res, 400, 'invalid_request', 'Некорректное тело запроса.');
+      const r = await oauth.register(body, { ip: ipOf(req) });
+      return send(res, r.status, r.body);
+    }
 
     // ---- профиль и роль (единый источник для лаунчера и сайта)
     if (path === '/v1/me' && method === 'GET') {

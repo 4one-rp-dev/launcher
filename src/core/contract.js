@@ -9,7 +9,7 @@
 const CHANNELS = [
   'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache', 'app:copyText',
   'win:minimize', 'win:toggleMaximize', 'win:close',
-  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest', 'auth:password', 'auth:mfa', 'auth:mfaCancel',
+  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest', 'auth:password', 'auth:mfa', 'auth:mfaCancel', 'auth:register',
   'data:bootstrap',
   'servers:select',
   'game:state', 'game:detect', 'game:browse', 'game:setPath',
@@ -37,6 +37,13 @@ const ERRORS = {
   launcher_access_denied: 'Доступ к лаунчеру не выдан. Обратитесь к администрации.',
   // вход по логину и паролю, двухфакторная защита
   invalid_credentials: 'Неверный логин или пароль.',
+  // регистрация (тексты — как в игре, Accounts/Registration/Repository.cs Validate)
+  invalid_login: 'Логин: латиница, цифры и «_», от 3 до 24 символов, первая — буква.',
+  invalid_password: 'Пароль: от 8 до 64 символов, латиница, цифры и знаки без пробелов; нужны и буквы, и цифры.',
+  invalid_email: 'Почта в формате name@mail.ru.',
+  invalid_promo: 'Промокод: латиница и цифры, до 16 символов.',
+  login_taken: 'Такой логин уже занят.',
+  email_taken: 'На эту почту уже зарегистрирован аккаунт.',
   invalid_mfa_code: 'Неверный код. Проверьте, что время на телефоне точное, и введите новый код.',
   mfa_expired: 'Время на ввод кода вышло. Войдите заново.',
   rate_limited: 'Слишком много попыток. Подождите несколько минут и повторите.',

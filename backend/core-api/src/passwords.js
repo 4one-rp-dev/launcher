@@ -5,7 +5,7 @@ const crypto = require('crypto');
  * Проверка пароля по тем же правилам, что игровой сервер (Accounts/PasswordHash.cs):
  *  - новый формат «p2$итерации$соль$хеш» — PBKDF2-SHA256, соль и хеш в base64;
  *  - старый формат — SHA-256 hex от ASCII-строки (русские буквы превращались в «?»).
- * API только читает хеши и ничего не переписывает: старый хеш заменит сам игровой сервер при входе в игру.
+ * Существующие хеши API не переписывает: старый хеш заменит сам игровой сервер при входе в игру. Новый пишется только при регистрации.
  */
 const PREFIX = 'p2$';
 
@@ -36,7 +36,7 @@ function verifyPassword(password, stored) {
   } catch (_) { return false; }
 }
 
-/** Для тестов и скриптов: тот же формат, что у игры. */
+/** Тот же формат, что у игры (PasswordHash.Hash): регистрация через API, тесты, скрипты. */
 function hashPassword(password, iterations = 100000) {
   const salt = crypto.randomBytes(16);
   const hash = crypto.pbkdf2Sync(Buffer.from(password, 'utf8'), salt, iterations, 32, 'sha256');

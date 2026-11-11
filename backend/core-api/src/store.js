@@ -3,7 +3,8 @@
  * Хранилище. Два варианта с одним интерфейсом:
  *  - memory: для разработки и тестов (данные из seed);
  *  - mysql: игровая MariaDB, одна база. Читаем accounts (в т.ч. alvl — уровень администрации), characters, banned;
- *    пишем только в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql, 003_mfa.sql).
+ *    пишем в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql, 003_mfa.sql); в accounts — только INSERT нового
+ *    аккаунта при регистрации (sql/004_signup.sql), существующие строки игры не меняем.
  * Время — Date (UTC), хеши токенов — hex sha256.
  */
 
@@ -27,13 +28,31 @@ function createMemoryStore(seed = {}) {
   const accounts = (seed.accounts || []).map((a) => ({ ...normAccount(a), characters: a.characters || [], banned: !!a.banned, lastAt: a.lastAt || null }));
   const codes = new Map(); const sessions = new Map(); const tokens = new Map();
   const mfa = new Map(); const backup = new Map();
-  const find = (id) => accounts.find((a) => a.login === id) || accounts.find((a) => a.email && a.email.toLowerCase() === String(id).toLowerCase()) || null;
+  const lc = (s) => String(s || '').toLowerCase();
+  const byLogin = (id) => accounts.find((a) => a.login === id) || accounts.find((a) => lc(a.login) === lc(id)) || null;
+  const byEmail = (email) => accounts.find((a) => a.email && lc(a.email) === lc(email)) || null;
+  // логин без учёта регистра, как в игре (точное совпадение — первым), затем почта
+  const find = (id) => byLogin(id) || byEmail(id);
 
   return {
     ...createMemoryContent(seed),
     kind: 'memory',
     async findAccount(identifier) { return find(identifier); },
+    async findAccountByEmail(email) { return byEmail(email); },
     async getAccount(login) { return accounts.find((a) => a.login === login) || null; },
+    /** Регистрация: проверка занятости и вставка без await между ними — атомарно в одном процессе. */
+    async createAccount(r) {
+      if (byLogin(r.login)) return { error: 'login_taken' };
+      if (byEmail(r.email)) return { error: 'email_taken' };
+      const vipDate = r.vipLvl > 0 ? new Date(r.now.getTime() + r.vipDays * 86400000) : r.now;
+      const a = {
+        ...normAccount({ login: r.login, email: r.email, passwordHash: r.passwordHash, socialClub: '', redbucks: r.redbucks, vipLvl: r.vipLvl, vipDate, alvl: 0 }),
+        characters: [], banned: false, lastAt: null,
+        game: { hwid: '', ip: r.ip, promocodes: JSON.stringify([r.promo]), bonuscodes: '[]', character1: -1, character2: -1, character3: -1, characters: '[-2,-2,-2,-2,-2,-2]' },
+      };
+      accounts.push(a);
+      return { account: a };
+    },
     async listCharacters(account) { return (account.characters || []).map((c) => ({ ...c })); },
     async isBanned(account) { return !!account.banned; },
     async lastSeen(account) { return account.lastAt ? new Date(account.lastAt) : null; },
@@ -123,8 +142,45 @@ function createMysqlStore(pool, cfg) {
     ...createMysqlContent(pool),
     kind: 'mysql',
     async findAccount(identifier) {
-      const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? OR LOWER(email) = LOWER(?) LIMIT 1`, [identifier, identifier]);
+      // логин без учёта регистра, как в игре (Autorization/Repository.cs); точное совпадение логина — первым
+      const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? OR LOWER(login) = LOWER(?) OR LOWER(email) = LOWER(?) ORDER BY login = ? DESC, LOWER(login) = LOWER(?) DESC LIMIT 1`,
+        [identifier, identifier, identifier, identifier, identifier]);
       return rows[0] ? toAccount(rows[0]) : null;
+    },
+    async findAccountByEmail(email) {
+      const rows = await q(`SELECT ${COLS} FROM accounts WHERE LOWER(email) = LOWER(?) LIMIT 1`, [email]);
+      return rows[0] ? toAccount(rows[0]) : null;
+    },
+    /**
+     * Регистрация (POST /v1/auth/register): строка accounts такая же, как пишет игра (Accounts/Registration/Repository.cs).
+     * Уникального ключа без учёта регистра у accounts нет (PRIMARY KEY (login) в utf8mb4_bin, на email ключа нет),
+     * поэтому проверка и вставка идут под именованной блокировкой GET_LOCK: две регистрации API выполняются по очереди.
+     * PRIMARY KEY ловит точный дубль логина, если игра вставила его в тот же момент.
+     */
+    async createAccount(r) {
+      const conn = await pool.getConnection();
+      try {
+        const [[l]] = await conn.query("SELECT GET_LOCK('4one_core_signup', 5) AS ok");
+        if (!l || Number(l.ok) !== 1) return { error: 'busy' };
+        try {
+          const [taken] = await conn.execute('SELECT 1 AS x FROM accounts WHERE LOWER(login) = LOWER(?) LIMIT 1', [r.login]);
+          if (taken.length) return { error: 'login_taken' };
+          const [mail] = await conn.execute('SELECT 1 AS x FROM accounts WHERE LOWER(email) = LOWER(?) LIMIT 1', [r.email]);
+          if (mail.length) return { error: 'email_taken' };
+          // vipdate по часам БД (NOW()), как DateTime.Now в игре
+          await conn.execute(
+            'INSERT INTO accounts (login, email, `password`, hwid, ip, socialclub, redbucks, viplvl, vipdate, promocodes, bonuscodes, character1, character2, character3, `characters`, `case`, CollectionGifts, `Unique`, ga) '
+            + "VALUES (?, ?, ?, '', ?, '', ?, ?, IF(? > 0, NOW() + INTERVAL ? DAY, NOW()), ?, '[]', -1, -1, -1, '[-2,-2,-2,-2,-2,-2]', '[0,0,0]', '[]', '', '')",
+            [r.login, r.email, r.passwordHash, String(r.ip || '').slice(0, 256), r.redbucks, r.vipLvl, r.vipLvl, r.vipDays, JSON.stringify([r.promo])]);
+        } catch (e) {
+          if (e && e.code === 'ER_DUP_ENTRY') return { error: 'login_taken' };
+          throw e;
+        } finally {
+          await conn.query("SELECT RELEASE_LOCK('4one_core_signup')").catch(() => {});
+        }
+      } finally { conn.release(); }
+      const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? LIMIT 1`, [r.login]);
+      return { account: rows[0] ? toAccount(rows[0]) : null };
     },
     async getAccount(login) {
       const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? LIMIT 1`, [login]);

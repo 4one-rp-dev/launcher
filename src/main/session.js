@@ -187,6 +187,14 @@ function createAuth(deps) {
     },
     async cancelMfa() { mfa = null; emit(); return ok(publicState()); },
 
+    /** Регистрация: аккаунт создаётся в игровой базе, вход — сразу. В игре он привяжется к SocialClub при первом входе. */
+    async register(f) {
+      clearPending(); mfa = null;
+      const r = await oauth.register(f, deviceName);
+      if (!r.ok) { log.info('auth', `регистрация отклонена: ${r.code}`); return r; }
+      return complete(r.data, 'после регистрации');
+    },
+
     /** Возврат из браузера. Чужие и устаревшие ссылки отбрасываются по state. */
     async handleCallback(link) {
       if (!pending || !link || !sameState(link.state, pending.state)) {

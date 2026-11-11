@@ -1,7 +1,7 @@
 'use strict';
 const crypto = require('crypto');
 const { isAllowedRedirect } = require('./config');
-const { verifyPassword } = require('./passwords');
+const { verifyPassword, hashPassword } = require('./passwords');
 const { randomToken, hashToken, verifyPkce, sign, unsign } = require('./tokens');
 const { createLimiter } = require('./limiter');
 const roles = require('./roles');
@@ -19,6 +19,21 @@ const cleanDevice = (s) => String(s || '').replace(/[^\p{L}\p{N} ._\-·]/gu, '')
 const methodOf = (cid) => (cid === '4one-launcher' ? 'launcher' : 'site');
 
 const oauthError = (status, error, description) => ({ status, body: { error, error_description: description } });
+
+// Проверки регистрации — те же, что в игре (Accounts/Registration/Repository.cs, Validate), с теми же текстами
+const LOGIN_RE = /^[A-Za-z][A-Za-z0-9_]{2,23}$/;
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
+const PROMO_RE = /^[A-Za-z0-9_-]{1,16}$/;  // как PromoRegex игры (там допускаются ещё «_» и «-»)
+function validateSignup(b) {
+  const str = (x) => (typeof x === 'string' ? x : '');
+  const login = str(b.login); const password = str(b.password); const email = str(b.email); const promo = str(b.promo);
+  if (!LOGIN_RE.test(login)) return { error: 'invalid_login', message: 'Логин: латиница, цифры и «_», от 3 до 24 символов, первая — буква.' };
+  if (password.length < 8 || password.length > 64 || !/^[\x21-\x7e]+$/.test(password)) return { error: 'invalid_password', message: 'Пароль: от 8 до 64 символов, латиница, цифры и знаки без пробелов.' };
+  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return { error: 'invalid_password', message: 'Пароль должен содержать буквы и цифры.' };
+  if (email.length > 64 || !EMAIL_RE.test(email)) return { error: 'invalid_email', message: 'Почта в формате name@mail.ru.' };
+  if (promo && !PROMO_RE.test(promo)) return { error: 'invalid_promo', message: 'Промокод: латиница и цифры, до 16 символов.' };
+  return { login, password, email, promo };
+}
 
 /**
  * OAuth 2.0: Authorization Code + PKCE (RFC 6749, 7636, 8252).
@@ -167,6 +182,35 @@ function createOAuth({ store, config, now = () => new Date() }) {
     return { status: 200, body: await startSession(r.account.login, cid, r.p.dv) };
   }
 
+  // ---- регистрация: POST /v1/auth/register (только доверенные клиенты), успех — сразу токены, как у directLogin без 2FA
+  const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
+  const signupTries = createLimiter({ max: 20, windowMs: SIGNUP_WINDOW_MS, now: () => now().getTime() });
+  const signupDone = createLimiter({ max: 3, windowMs: SIGNUP_WINDOW_MS, now: () => now().getTime() });
+
+  async function register(body, meta = {}) {
+    const cid = String(body.client_id || '');
+    if (!trustedClient(cid)) return oauthError(400, 'invalid_client', 'Регистрация для этого приложения недоступна.');
+    const key = `ip:${meta.ip || '-'}`;
+    if (signupTries.blocked(key) || signupDone.blocked(key)) return oauthError(429, 'rate_limited', 'Слишком много регистраций. Попробуйте позже.');
+    signupTries.fail(key); // считается каждая попытка, в том числе удачная
+    const v = validateSignup(body);
+    if (v.error) return oauthError(400, v.error, v.message);
+    // как игра: логин, почта и промокод в нижнем регистре, пустой промокод — "noref" (по нему игра решает про реферальный бонус)
+    const r = await store.createAccount({
+      login: v.login.toLowerCase(), email: v.email.toLowerCase(), passwordHash: hashPassword(v.password),
+      promo: v.promo ? v.promo.toLowerCase() : 'noref', ip: meta.ip || '', now: now(),
+      redbucks: config.signup.redbucks, vipLvl: config.signup.vipLvl, vipDays: config.signup.vipDays,
+    });
+    if (r.error === 'login_taken') return oauthError(409, 'login_taken', 'Этот логин уже занят.');
+    if (r.error === 'email_taken') return oauthError(409, 'email_taken', 'Эта почта уже используется.');
+    if (r.error === 'busy') return oauthError(429, 'busy', 'Слишком много запросов. Попробуйте ещё раз.');
+    if (r.error || !r.account) throw new Error(`register: ${r.error || 'нет аккаунта после вставки'}`);
+    signupDone.fail(key);
+    const m = { cid, dv: cleanDevice(body.device_name) };
+    logEvent(r.account.login, m, meta.ip, true);
+    return { status: 201, body: await startSession(r.account.login, cid, m.dv) };
+  }
+
   async function exchange(body, meta = {}) {
     const key = `tok:${meta.ip || '-'}`;
     if (tokenLimiter.blocked(key)) return oauthError(429, 'slow_down', 'Слишком много запросов.');
@@ -241,8 +285,8 @@ function createOAuth({ store, config, now = () => new Date() }) {
   }
 
   return {
-    parseAuthorize, beginTx, submitLogin, submitMfa, directLogin, directMfa, exchange, revoke, authenticate, profile, mfa,
-    _limiters: { loginLimiter, ipLimiter, tokenLimiter, mfaLimiter: mfa.limiter, tries },
+    parseAuthorize, beginTx, submitLogin, submitMfa, directLogin, directMfa, register, exchange, revoke, authenticate, profile, mfa,
+    _limiters: { loginLimiter, ipLimiter, tokenLimiter, mfaLimiter: mfa.limiter, tries, signupTries, signupDone },
   };
 }
 

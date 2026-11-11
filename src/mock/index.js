@@ -158,6 +158,11 @@ function createMock(opts) {
       if (/2fa/i.test(login) || S.mfaOn) { S.mfaStep = true; bus.emit('auth:changed', authState()); return ok(authState()); }
       S.authed = true; S.guest = false; S.offline = false; bus.emit('auth:changed', authState()); return ok(authState());
     },
+    async register(f) {
+      await delay(600);
+      if (/^(admin|test)$/i.test(f.login)) return fail('login_taken');
+      S.authed = true; S.guest = false; S.offline = false; bus.emit('auth:changed', authState()); return ok(authState());
+    },
     async submitMfa(code) {
       await delay(400);
       if (!S.mfaStep) return fail('mfa_expired');

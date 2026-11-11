@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS `core_mfa_backup` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 -- Права пользователя БД для API (дополнение к 001 и 002, под root):
---   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_mfa TO 'core_api'@'127.0.0.1';
---   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3_main.core_mfa_backup TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3main.core_mfa TO 'core_api'@'127.0.0.1';
+--   GRANT SELECT, INSERT, UPDATE, DELETE ON ra3main.core_mfa_backup TO 'core_api'@'127.0.0.1';
 -- Отключить 2FA игроку вручную (потерял телефон и коды):
---   DELETE FROM ra3_main.core_mfa_backup WHERE login = '…'; DELETE FROM ra3_main.core_mfa WHERE login = '…';
+--   DELETE FROM ra3main.core_mfa_backup WHERE login = '…'; DELETE FROM ra3main.core_mfa WHERE login = '…';

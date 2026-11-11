@@ -22,6 +22,8 @@ const ROUTES = {
   settings: { tip: 'Настройки', icon: 'gear', mod: settings },
 };
 const KEYS = ['home', 'news', 'codes', 'account', 'settings'];
+// раскрыт ли блок «Ресурсы»: удобство одного игрока, без хранилища просто не запомним
+let resOpen = false; try { resOpen = localStorage.getItem('l4.resOpen') === '1'; } catch (_) { resOpen = false; }
 // ресурсы в левой панели: ключ ссылки (config.links / data.links), иконка, подпись
 const RES = () => [['discord', 'discord', 'Discord'], ['site', 'globe', t('Сайт')], ['kb', 'doc', t('Правила')], ['forum', 'chat', t('Форум')], ['donate', 'coin', t('Донат')], ['support', 'mega', t('Поддержка')]];
 const allowed = (r) => r !== 'admin' || canAdmin(S.auth.profile); // вкладка администрирования — только по праву admin.panel
@@ -92,7 +94,9 @@ function syncRail() {
   const rb = $('#rail-res', rail);
   if (rb.dataset.k !== rk) {
     rb.dataset.k = rk;
-    rb.innerHTML = res.length ? `<p class="rail-h">${t('Ресурсы')}</p><div class="res-row">${res.map(([k, i, n]) => `<button class="rk" data-res="${k}" title="${esc(n)}" aria-label="${esc(n)}">${ic(i)}</button>`).join('')}</div>` : '';
+    // свёрнуто по умолчанию (как у Majestic): заголовок-кнопка, по клику — список ссылок с названиями
+    rb.innerHTML = res.length ? `<button class="res-tg" data-act="res-toggle" aria-expanded="${resOpen}" aria-controls="res-list" data-tip="${esc(t('Ресурсы'))}">${ic('link')}<span class="lb">${t('Ресурсы')}</span>${ic('chev-d')}</button>
+      <div class="res-list" id="res-list"${resOpen ? '' : ' hidden'}>${res.map(([k, i, n]) => `<button class="rk" data-res="${k}" data-tip="${esc(n)}" aria-label="${esc(n)}">${ic(i)}<span class="lb">${esc(n)}</span>${ic('ext')}</button>`).join('')}</div>` : '';
   }
   const unread = S.settings.newsBadge === false ? 0 : (S.data && S.data.news || []).filter((n) => (n.date || '') > (S.settings.lastSeenNews || '')).length;
   const nb = $('[data-go=news] .bd', rail); nb.hidden = !unread || S.route === 'news'; nb.textContent = String(unread);
@@ -109,6 +113,11 @@ function moveInd() {
 }
 delegate($('#rail'), 'click', '[data-go]', (el) => go(el.dataset.go));
 delegate($('#rail'), 'click', '[data-act=profile]', () => openProfile());
+delegate($('#rail'), 'click', '[data-act=res-toggle]', (el) => {
+  resOpen = !resOpen;
+  try { localStorage.setItem('l4.resOpen', resOpen ? '1' : '0'); } catch (_) { /* ignore */ }
+  el.setAttribute('aria-expanded', String(resOpen)); $('#res-list').hidden = !resOpen; requestAnimationFrame(moveInd);
+});
 delegate($('#rail'), 'click', '[data-res]', (el) => call('app:openExternal', el.dataset.res).then((r) => { if (!r.ok) toast('err', r.message); }));
 
 /** Гость открыл раздел, где нужен аккаунт: предлагаем войти. */

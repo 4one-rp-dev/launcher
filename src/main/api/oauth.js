@@ -64,6 +64,11 @@ function createOAuthClient(opts) {
       if (r.data && r.data.mfa_required && r.data.mfa_token) return ok({ mfa: true, token: r.data.mfa_token, methods: r.data.methods || ['totp'] });
       return toTokens(r.data);
     },
+    /** Регистрация игрового аккаунта: сразу возвращает токены (вход выполнен). */
+    async register(f, deviceName) {
+      const r = await request('/v1/auth/register', json({ client_id: clientId, login: f.login, email: f.email, password: f.password, promo: f.promo || '', device_name: String(deviceName || '').slice(0, 80) }));
+      return r.ok ? toTokens(r.data) : r;
+    },
     async mfaLogin(mfaToken, code) {
       const r = await request('/v1/auth/mfa', json({ client_id: clientId, mfa_token: mfaToken, code }));
       return r.ok ? toTokens(r.data) : r;

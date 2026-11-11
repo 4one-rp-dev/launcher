@@ -13,6 +13,14 @@ const DEFAULT_CLIENTS = {
   },
 };
 
+// целое ≥ 0; пусто — 0
+const count = (v, name) => {
+  if (v === undefined || v === '') return 0;
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 0 || n > 2147483647) throw new Error(`${name}: нужно целое число от 0`);
+  return n;
+};
+
 function load(env = process.env) {
   const store = (env.CORE_STORE || 'mysql').toLowerCase();
   const secret = env.CORE_SECRET || '';
@@ -50,6 +58,12 @@ function load(env = process.env) {
     trustProxy: env.CORE_TRUST_PROXY === '1',
     seedFile: env.CORE_SEED || '',
     internalToken: env.CORE_INTERNAL_TOKEN || '',   // для POST /v1/internal/* (игровой сервер, cron); пусто — эти маршруты выключены
+    // стартовые значения нового аккаунта (POST /v1/auth/register), как MoneySettings.CreateAccountRedBucks / CreateVipLvl / CreateVipDay в игре
+    signup: {
+      redbucks: count(env.CORE_SIGNUP_REDBUCKS, 'CORE_SIGNUP_REDBUCKS'),
+      vipLvl: count(env.CORE_SIGNUP_VIP_LVL, 'CORE_SIGNUP_VIP_LVL'),
+      vipDays: count(env.CORE_SIGNUP_VIP_DAYS, 'CORE_SIGNUP_VIP_DAYS'),
+    },
   };
 }
 

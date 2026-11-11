@@ -6,7 +6,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const CHANNELS = [
   'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache', 'app:copyText',
   'win:minimize', 'win:toggleMaximize', 'win:close',
-  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest', 'auth:password', 'auth:mfa', 'auth:mfaCancel',
+  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest', 'auth:password', 'auth:mfa', 'auth:mfaCancel', 'auth:register',
   'data:bootstrap',
   'servers:select',
   'game:state', 'game:detect', 'game:browse', 'game:setPath',

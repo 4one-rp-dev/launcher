@@ -64,6 +64,16 @@ function createHandlers(s) {
     },
     'auth:mfa': async (code) => (MFA_RE.test(String(code || '')) ? s.auth.submitMfa(String(code)) : fail('invalid_mfa_code')),
     'auth:mfaCancel': async () => s.auth.cancelMfa(),
+    // регистрация игрового аккаунта: те же правила, что в игре; окончательная проверка — на сервере
+    'auth:register': async (f) => {
+      if (!f || typeof f !== 'object') return fail('bad_request');
+      const login = String(f.login || '').trim(); const email = String(f.email || '').trim(); const password = String(f.password || ''); const promo = String(f.promo || '').trim();
+      if (!/^[A-Za-z][A-Za-z0-9_]{2,23}$/.test(login)) return fail('invalid_login');
+      if (password.length < 8 || password.length > 64 || /[^!-~]/.test(password) || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return fail('invalid_password');
+      if (email.length > 64 || !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return fail('invalid_email');
+      if (promo && !/^[A-Za-z0-9]{1,16}$/.test(promo)) return fail('invalid_promo');
+      return s.auth.register({ login, email, password, promo });
+    },
 
     'data:bootstrap': async (force) => s.data.bootstrap(!!force),
 
