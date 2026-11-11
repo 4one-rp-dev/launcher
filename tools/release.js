@@ -17,10 +17,11 @@ const { owner, repo } = { owner: '4one-rp-dev', repo: 'launcher' };
 const ver = pkg.version; const tag = `v${ver}`;
 const argNotes = process.argv.indexOf('--notes');
 const notes = argNotes > 0 ? process.argv[argNotes + 1] : `4ONE Launcher ${ver}`;
-const run = (cmd, args, opts) => execFileSync(cmd, args, Object.assign({ cwd: root, stdio: 'inherit', shell: process.platform === 'win32' }, opts || {}));
+// оболочка нужна только для npm/npx (.cmd в Windows); gh — обычный exe, ему пути с пробелами передаём как есть
+const run = (cmd, args, opts) => execFileSync(cmd, args, Object.assign({ cwd: root, stdio: 'inherit', shell: process.platform === 'win32' && /^(npm|npx)$/.test(cmd) }, opts || {}));
 
 // тот же тег уже выпущен — останавливаемся до сборки
-try { execFileSync('gh', ['release', 'view', tag, '--repo', `${owner}/${repo}`], { cwd: root, stdio: 'ignore', shell: process.platform === 'win32' }); console.error(`Релиз ${tag} уже есть. Поднимите версию в package.json.`); process.exit(1); } catch (_) { /* релиза нет — продолжаем */ }
+try { execFileSync('gh', ['release', 'view', tag, '--repo', `${owner}/${repo}`], { cwd: root, stdio: 'ignore' }); console.error(`Релиз ${tag} уже есть. Поднимите версию в package.json.`); process.exit(1); } catch (_) { /* релиза нет — продолжаем */ }
 
 run('npm', ['test']);
 run('npx', ['electron-builder', '--win', 'nsis', '--publish', 'never']);
