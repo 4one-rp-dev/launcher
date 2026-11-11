@@ -91,6 +91,11 @@
 
 /* ---------- строки настроек (используются в настройках и аккаунте) ---------- */
 .srow{display:flex;align-items:center;gap:18px;padding:14px 20px;min-height:64px}
+.snote{margin:0;padding:10px 20px 4px;color:var(--t3);font-size:12.5px;line-height:1.45}
+.found:empty{display:none}
+.found{border-top:1px solid var(--line)}
+.srow .st .path{word-break:break-all}
+.sw:disabled{opacity:.45;cursor:not-allowed}
 .srow + .srow{border-top:1px solid var(--line)}
 .srow .st{flex:1;min-width:0}
 .srow .st b{display:block;font-size:14px}

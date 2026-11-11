@@ -36,10 +36,12 @@ function createHandlers(s) {
       return s.app.openExternal(key);
     },
     'app:openPath': async (kind) => {
-      if (!['logs', 'game', 'userdata'].includes(kind)) return fail('bad_request');
+      if (!['logs', 'game', 'userdata', 'cache'].includes(kind)) return fail('bad_request');
       return s.app.openPath(kind);
     },
     'app:copyDiagnostics': async () => s.app.copyDiagnostics(),
+    'app:cacheInfo': async () => s.app.cacheInfo(),
+    'app:clearCache': async () => s.app.clearCache(),
 
     'win:minimize': async () => { s.win.minimize(); return ok(); },
     'win:toggleMaximize': async () => ok(s.win.toggleMaximize()),

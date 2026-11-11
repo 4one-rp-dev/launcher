@@ -50,7 +50,19 @@ function createRunner(deps) {
     });
   }
 
-  return { isRunning, launch, waitAppear, waitExit, tcpPing };
+  /** Приоритет процесса (GTA5.exe): normal | abovenormal | high. Через PowerShell, без окон; ошибки не критичны. */
+  function setPriority(imageName, level) {
+    const cls = { normal: 'Normal', abovenormal: 'AboveNormal', high: 'High' }[level];
+    if (process.platform !== 'win32' || !cls) return Promise.resolve(false);
+    const name = String(imageName).replace(/\.exe$/i, '').replace(/[^A-Za-z0-9_.-]/g, '');
+    const cmd = `Get-Process -Name '${name}' -ErrorAction SilentlyContinue | ForEach-Object { $_.PriorityClass = '${cls}' }`;
+    return new Promise((resolve) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', cmd], { windowsHide: true, timeout: 15000 }, (err) => {
+      if (err) log && log.warn('runner', `приоритет: ${err.message}`); else log && log.info('runner', `приоритет ${name}: ${cls}`);
+      resolve(!err);
+    }));
+  }
+
+  return { isRunning, launch, waitAppear, waitExit, tcpPing, setPriority };
 }
 
 module.exports = { createRunner };

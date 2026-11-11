@@ -61,7 +61,7 @@ function createKit(deps) {
     const zipPath = path.join(dir, `kit-${info.version}.zip`);
     let done = 0; const t0 = Date.now();
     await downloadFile({
-      url: info.kitUrl, dest: zipPath, size: info.kitSize || null, sha256: info.kitSha256, signal: o.signal, fetch: doFetch,
+      url: info.kitUrl, dest: zipPath, size: info.kitSize || null, sha256: info.kitSha256, signal: o.signal, fetch: doFetch, maxBps: deps.maxBps,
       onBytes: (n) => { done += n; const dt = (Date.now() - t0) / 1000 || 1; o.onProgress && o.onProgress({ stage: 'kit', file: '', done, total: info.kitSize || 0, speed: done / dt }); },
     });
     if (o.signal && o.signal.aborted) throw new DlError('cancelled');
@@ -125,7 +125,16 @@ function createKit(deps) {
     for (const n of names) { if (n === path.basename(verDir(keep))) continue; fs.rmSync(path.join(dir, n), { recursive: true, force: true }); }
   }
 
-  return { current, needed, valid, ensure, extract, EXE };
+  /** Размер папки комплекта (байты) — для раздела «Загрузка». */
+  function size() {
+    let total = 0;
+    const walk = (d) => { let es = []; try { es = fs.readdirSync(d, { withFileTypes: true }); } catch (_) { return; } for (const e of es) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else { try { total += fs.statSync(p).size; } catch (_) { /* ignore */ } } } };
+    walk(dir); return total;
+  }
+  /** Удалить скачанный комплект: установленный клиент живёт отдельно и не страдает, при нужде комплект скачается снова. */
+  function clear() { fs.rmSync(dir, { recursive: true, force: true }); }
+
+  return { current, needed, valid, ensure, extract, size, clear, dir, EXE };
 }
 
 /** Сравнение версий 1.2.3 (недостающие части — нули). */

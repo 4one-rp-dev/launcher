@@ -11,7 +11,7 @@ const HUES = ['#b9a3ff', '#9fd4b4', '#f0a0b4', '#9cc4f5', '#dcc49c'];
 export const hueOf = (id) => HUES[[...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % HUES.length];
 
 // показываем только настроенные на сервере ссылки (data.links); в демо и без данных — все
-const LINKS = () => [['discord', 'discord', 'Discord'], ['site', 'globe', t('Сайт')], ['donate', 'coin', t('Донат')], ['kb', 'doc', t('Правила')]]
+const LINKS = () => [['discord', 'discord', 'Discord', t('Сообщество и поддержка')], ['site', 'globe', t('Сайт'), t('Новости и личный кабинет')], ['donate', 'coin', t('Донат'), t('Пополнить 4Coin')], ['kb', 'doc', t('Правила'), t('Правила и законы штата')]]
   .filter(([k]) => !(S.data && Array.isArray(S.data.links)) || S.data.links.includes(k));
 const NOTICE = () => ({
   'no-gta': ['folder', t('Ещё нет GTA V?'), t('Нужна GTA V Legacy из Rockstar Games Launcher, Steam или Epic Games. Уже установлена — укажите её папку.')],
@@ -133,9 +133,9 @@ export function mount(root, ctx) {
       <span class="tl-t"><small>${esc(dateShort(n.date))}</small><b>${esc(n.title)}</b></span></button>`; };
     side.innerHTML = `
       <header class="sec-h"><h2>${t('Новости')}</h2><span class="sp"></span><button class="link" data-act="allnews">${t('Все новости')}</button></header>
-      ${!S.data ? '<div class="sk" style="height:170px"></div>' : !list.length ? `<div class="empty">${ic('news')}<b>${t('Новости проекта появятся здесь.')}</b></div>` : `
+      ${!S.data ? '<div class="sk" style="height:170px"></div>' : !list.length ? `<div class="nw-empty">${ic('news')}<span><b>${t('Новостей пока нет')}</b><small>${t('Здесь появятся обновления, ивенты и анонсы проекта.')}</small></span></div>` : `
       <div class="tiles">${tile(f, ' big')}${rest.map((n) => tile(n)).join('')}</div>`}
-      <div class="quick">${LINKS().map(([k, i, n]) => `<button class="qk" data-act="link" data-k="${k}" title="${esc(n)}">${ic(i)}<span>${esc(n)}</span></button>`).join('')}</div>`;
+      <div class="quick">${LINKS().map(([k, i, n, d]) => `<button class="qk" data-act="link" data-k="${k}">${ic(i)}<span class="qk-t"><b>${esc(n)}</b><small>${esc(d)}</small></span>${ic('ext')}</button>`).join('')}</div>`;
   }
 
   // ---------- действия ----------

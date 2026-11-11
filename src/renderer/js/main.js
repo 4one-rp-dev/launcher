@@ -46,6 +46,11 @@ export function go(route, opt) {
   patch({ route: target });
   cur = mod.mount(root, { go, arg, refresh: loadData });
   syncRail();
+  // «Открывать последний раздел»: запоминаем, куда ушёл игрок (без перерисовки — только запись настройки)
+  if (target !== 'login' && S.settings && S.settings.rememberRoute !== false && S.settings.lastRoute !== target) {
+    S.settings = Object.assign({}, S.settings, { lastRoute: target });
+    call('settings:set', { lastRoute: target });
+  }
 }
 
 // ---------- левая панель (строится один раз, потом только обновляется) ----------
@@ -244,7 +249,8 @@ document.addEventListener('keydown', (e) => {
     info: info.data, auth: auth.data, settings: st.data || {}, game: game.data, booted: true,
   }, 'boot');
   setLang(S.settings.lang); applyStatic(); renderVer();
-  if (inside()) { await loadData(false); if (S.auth.offline) patch({ net: false }); go('home'); } else go('login');
+  const start = () => { const r = S.settings.rememberRoute !== false ? S.settings.lastRoute : 'home'; return r && ROUTES[r] && !(S.auth.guest && !S.auth.authed && NEED_LOGIN.has(r)) ? r : 'home'; };
+  if (inside()) { await loadData(false); if (S.auth.offline) patch({ net: false }); go(start()); } else go('login');
 })();
 
 // онлайн и статус серверов обновляются раз в минуту, пока лаунчер внутри

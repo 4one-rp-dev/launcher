@@ -20,7 +20,7 @@ function createGame(deps) {
   const detectFn = deps.detect || detectGta;
 
   const st = {
-    phase: 'init', gta: null, client: { installed: false, version: '', remoteVersion: '', needsUpdate: false, updateBytes: 0 },
+    phase: 'init', gta: null, found: [], client: { installed: false, version: '', remoteVersion: '', needsUpdate: false, updateBytes: 0 },
     progress: null, error: null, running: false,
   };
   let abort = null; let busy = false; let sessionStart = 0; let lastExe = null;
@@ -44,6 +44,7 @@ function createGame(deps) {
   async function refresh() {
     const manual = settings.get().gamePath;
     const d = await detectFn({ manualPath: manual });
+    st.found = (d.all || []).map((x) => ({ dir: x.dir, source: x.source, version: x.version, supported: !!x.isSupported, enhancedOnly: !!x.enhancedOnly }));
     st.gta = d.best ? { dir: d.best.dir, source: d.best.source, version: d.best.version, exe: d.best.exe, isSupported: d.best.isSupported, hasLegacy: d.best.hasLegacy, hasEnhanced: d.best.hasEnhanced } : null;
     st.error = null;
     if (!d.best) { st.client.installed = false; return setPhase('no-gta'); }
@@ -191,8 +192,11 @@ function createGame(deps) {
       st.progress = null;
 
       const s = settings.get();
-      if (s.closeAfterStart) bus.emit('quit-after-start', {});
-      else if (s.minimizeToTray) bus.emit('minimize-to-tray', {});
+      if (s.gamePriority && s.gamePriority !== 'normal' && runner.setPriority) runner.setPriority(config.game.exe, s.gamePriority).catch(() => {});
+      const after = s.afterStart || (s.closeAfterStart ? 'close' : 'minimize');
+      if (after === 'close') bus.emit('quit-after-start', {});
+      else if (after === 'tray') bus.emit('minimize-to-tray', {});
+      else if (after === 'minimize') bus.emit('minimize-window', {});
       watch().catch((e) => log.error('game', `watch: ${e.message}`));
       return ok(getState());
     }),

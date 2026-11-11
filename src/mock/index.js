@@ -83,12 +83,12 @@ function createMock(opts) {
   const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending, guest: !S.authed && !!S.guest });
 
   // ---- настройки
-  const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true };
+  const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true, afterStart: 'minimize', gamePriority: 'normal', startHidden: true, rememberRoute: true, lastRoute: 'home', notifyNews: true, notifyServer: true, dlLimit: '0' };
   let settings = Object.assign({}, settingsDefaults, store.get('settings', {}));
 
   // ---- игра
   const gtaOk = { dir: 'C:\\Program Files\\Rockstar Games\\Grand Theft Auto V', source: 'rockstar', version: '1.0.3889.0', exe: 'C:\\Program Files\\Rockstar Games\\Grand Theft Auto V\\GTA5.exe', isSupported: true, hasLegacy: true, hasEnhanced: false };
-  const G = { phase: 'ready', gta: gtaOk, client: { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }, progress: null, error: null, running: false };
+  const G = { found: [{ dir: gtaOk.dir, source: 'rockstar', version: '1.0.3889.0', supported: true }, { dir: 'D:\\SteamLibrary\\steamapps\\common\\Grand Theft Auto V', source: 'steam', version: '1.0.3889.0', supported: true }], phase: 'ready', gta: gtaOk, client: { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }, progress: null, error: null, running: false };
   const sc = {
     'not-installed': () => { G.phase = 'not-installed'; G.client = { installed: false, version: '', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; },
     update: () => { G.phase = 'needs-update'; G.client = { installed: true, version: '0.9.2', remoteVersion: '1.0.0', needsUpdate: true, updateBytes: 86 * MB }; },
@@ -212,6 +212,8 @@ function createMock(opts) {
     async openExternal() { bus.emit('toast', { kind: 'info', text: 'Откроется в браузере' }); return ok(); },
     async openPath() { bus.emit('toast', { kind: 'info', text: 'Откроется папка' }); return ok(); },
     async copyDiagnostics() { return ok({ text: '4ONE Launcher 1.0.0 (демо)' }); },
+    async cacheInfo() { return ok({ dir: 'C:\\Users\\Player\\AppData\\Local\\4ONE Launcher\\client-kit', bytes: 382 * MB }); },
+    async clearCache() { return ok({ bytes: 0 }); },
   };
   const win = { minimize() {}, toggleMaximize() { return false; }, close() {} };
   const updater = {

@@ -17,7 +17,15 @@ const SCHEMA = {
   scale: { type: 'string', def: 'auto', enum: ['auto', '90', '100', '110', '125', '150'] }, // масштаб интерфейса
   animations: { type: 'boolean', def: true },    // выключить — без анимаций и переходов
   toasts: { type: 'boolean', def: true },        // информационные всплывашки (ошибки показываются всегда)
-  guest: { type: 'boolean', def: false },       // играть без входа (до регистрации в игре)
+  guest: { type: 'boolean', def: false },
+  afterStart: { type: 'string', def: 'minimize', enum: ['none', 'minimize', 'tray', 'close'] }, // что делать с окном, когда игра запустилась
+  gamePriority: { type: 'string', def: 'normal', enum: ['normal', 'abovenormal', 'high'] },   // приоритет процесса GTA5.exe
+  startHidden: { type: 'boolean', def: true },    // автозапуск с Windows — сразу в трей
+  rememberRoute: { type: 'boolean', def: true },  // открывать последний раздел
+  lastRoute: { type: 'string', def: 'home' },
+  notifyNews: { type: 'boolean', def: true },     // системное уведомление о новой новости, пока лаунчер свёрнут
+  notifyServer: { type: 'boolean', def: true },   // …и о том, что сервер снова доступен
+  dlLimit: { type: 'string', def: '0', enum: ['0', '50', '20', '10', '5'] }, // ограничение скорости загрузки клиента, МБ/с       // играть без входа (до регистрации в игре)
   newsBadge: { type: 'boolean', def: true },     // счётчик непрочитанных новостей     // violet | mint | rose | sky — акцент интерфейса
 };
 
@@ -62,7 +70,7 @@ function createSettings(dir, hooks) {
     },
     /** Сброс интерфейсных и игровых настроек; путь к GTA, выбранный сервер и счётчики остаются */
     async reset() {
-      const keep = {}; for (const k of ['gamePath', 'selectedServerId', 'lastSeenNews', 'playMinutes', 'guest']) keep[k] = cur[k];
+      const keep = {}; for (const k of ['gamePath', 'selectedServerId', 'lastSeenNews', 'playMinutes', 'guest', 'lastRoute']) keep[k] = cur[k];
       const before = cur; cur = Object.assign(defaults(), keep);
       clearTimeout(timer); timer = setTimeout(flush, 150);
       if (hooks && hooks.onChange) hooks.onChange(cur, before);

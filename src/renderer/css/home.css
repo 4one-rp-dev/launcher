@@ -70,7 +70,7 @@
 .sc:hover:before{opacity:1}
 .sc:active{transform:translateY(0) scale(.99)}
 .sc[aria-checked=true]{border-color:var(--sc);background:linear-gradient(160deg,color-mix(in srgb,var(--sc) 20%,var(--p2)),var(--p2) 80%)}
-.sc[aria-checked=true]:before{opacity:.8}
+/* выбранная карточка без «застывшего» свечения: свет только под курсором и гаснет, когда курсор уходит */
 .sc:after{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;background:var(--sc);box-shadow:0 0 12px var(--sc);transform:scaleY(0);transition:transform .28s var(--ease)}
 .sc[aria-checked=true]:after{transform:scaleY(1)}
 .sc-top{display:flex;align-items:center;gap:9px;min-width:0}
@@ -109,12 +109,22 @@
 .tl-t b{font:700 13px/1.28 var(--sans);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tl.big .tl-t{padding:14px 16px 15px}
 .tl.big .tl-t b{font-size:16px}
-.quick{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;margin-top:auto;padding-top:4px}
-.qk{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px 10px;border-radius:var(--r2);border:1px solid var(--line);background:var(--p2);color:var(--t2);font:700 11.5px var(--sans);transition:background-color .15s,color .15s,transform .15s var(--ease),border-color .15s}
-.qk svg.i{width:20px;height:20px;color:var(--ac);transition:transform .2s var(--ease)}
-.qk span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.qk:hover{background:color-mix(in srgb,var(--ac2) 18%,var(--p2));color:var(--t1);transform:translateY(-2px);border-color:color-mix(in srgb,var(--ac) 30%,transparent)}
-.qk:hover svg.i{transform:scale(1.12)}
+.nw-empty{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--r2);border:1px solid var(--line);background:var(--p2)}
+.nw-empty > svg.i{flex:none;width:36px;height:36px;padding:8px;border-radius:var(--r1);color:var(--ac);background:color-mix(in srgb,var(--ac2) 16%,transparent)}
+.nw-empty span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nw-empty b{font-size:13.5px}
+.nw-empty small{font-size:12.5px;color:var(--t3);line-height:1.4}
+/* ссылки — строками: одна ссылка не растягивается в огромную плитку, несколько — переносятся по ширине */
+.quick{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:auto;padding-top:4px}
+.qk{display:flex;align-items:center;gap:12px;min-width:0;padding:11px 14px;border-radius:var(--r2);border:1px solid var(--line);background:var(--p2);color:var(--t2);text-align:left;transition:background-color .15s,color .15s,transform .15s var(--ease),border-color .15s}
+.qk > svg.i:first-child{flex:none;width:34px;height:34px;padding:7px;border-radius:var(--r1);color:var(--ac);background:color-mix(in srgb,var(--ac2) 16%,transparent);transition:transform .2s var(--ease)}
+.qk > svg.i:last-child{flex:none;width:16px;height:16px;margin-left:auto;color:var(--t3);opacity:.7;transition:transform .2s var(--ease),opacity .15s}
+.qk-t{display:flex;flex-direction:column;gap:1px;min-width:0}
+.qk-t b{font:700 13px var(--sans);color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qk-t small{font-size:12px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qk:hover{background:color-mix(in srgb,var(--ac2) 14%,var(--p2));color:var(--t1);transform:translateY(-1px);border-color:color-mix(in srgb,var(--ac) 30%,transparent)}
+.qk:hover > svg.i:first-child{transform:scale(1.06)}
+.qk:hover > svg.i:last-child{opacity:1;transform:translate(1px,-1px)}
 
 /* --- адаптив: контейнер .view --- */
 @container view (max-width:900px){

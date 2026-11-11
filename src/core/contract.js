@@ -7,7 +7,7 @@
 
 /** Запросы (invoke): рендерер -> main, ответ всегда { ok, data?, code?, message? } */
 const CHANNELS = [
-  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics',
+  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache',
   'win:minimize', 'win:toggleMaximize', 'win:close',
   'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest',
   'data:bootstrap',

@@ -1,7 +1,7 @@
 'use strict';
 const path = require('path');
 const fs = require('fs');
-const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage, Tray, Menu, nativeImage, clipboard, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage, Tray, Menu, nativeImage, clipboard, session, Notification } = require('electron');
 
 const config = require('./config');
 const { CHANNELS, ok, fail } = require('../core/contract');
@@ -18,7 +18,9 @@ if (!app.requestSingleInstanceLock()) { app.quit(); return; }
 if (process.defaultApp && process.argv.length >= 2) app.setAsDefaultProtocolClient(config.protocol, process.execPath, [path.resolve(process.argv[1])]);
 else app.setAsDefaultProtocolClient(config.protocol);
 
-let win = null; let tray = null; let quitting = false; let pendingLink = null; let authHandler = null;
+let win = null; let tray = null; let quitting = false; let pendingLink = null; let authHandler = null; let kitRef = null;
+// автозапуск с Windows с флагом --hidden: окно не показываем, лаунчер живёт в трее
+const startHidden = process.argv.includes('--hidden');
 const RENDERER = path.join(__dirname, '..', 'renderer', 'index.html');
 const RENDERER_URL_PREFIX = require('url').pathToFileURL(path.join(__dirname, '..', 'renderer')).href;
 
@@ -62,7 +64,7 @@ function createWindow(settings) {
     },
   });
   win.setMenu(null);
-  win.once('ready-to-show', () => { win.show(); });
+  win.once('ready-to-show', () => { if (startHidden && tray) return; win.show(); });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.on('close', (e) => {
@@ -120,7 +122,20 @@ function buildServices(settings) {
       } catch (_) { return fail('bad_request'); }
       await shell.openExternal(String(url)); return ok();
     },
+    async cacheInfo() {
+      if (!kitRef) return ok({ dir: '', bytes: 0 });
+      return ok({ dir: kitRef.dir, bytes: kitRef.size() });
+    },
+    async clearCache() {
+      if (!kitRef) return ok({ bytes: 0 });
+      const g = game && game.getState();
+      if (g && ['installing', 'verifying', 'launching'].includes(g.phase)) return fail('busy');
+      try { kitRef.clear(); } catch (e) { log.warn('cache', e.message); return fail('no_write_access'); }
+      log.info('cache', 'скачанный комплект клиента удалён');
+      return ok({ bytes: kitRef.size() });
+    },
     async openPath(kind) {
+      if (kind === 'cache') { const d = kitRef && kitRef.dir; if (!d) return fail('unknown'); fs.mkdirSync(d, { recursive: true }); const err = await shell.openPath(d); return err ? fail('unknown') : ok(); }
       const p = kind === 'logs' ? log.dir : kind === 'game' ? (game && game.getState().gta && game.getState().gta.dir) : userData;
       if (!p) return fail('gta_not_found');
       const err = await shell.openPath(p); return err ? fail('unknown') : ok();
@@ -171,7 +186,8 @@ function buildServices(settings) {
   const platform = createPlatform({ log });
   // комплект (~400 МБ) — в Local, а не в Roaming: Roaming синхронизируется в доменных сетях и не для кэша
   const kitDir = path.join(process.env.LOCALAPPDATA || userData, '4ONE Launcher', 'client-kit');
-  const kit = createKit({ dir: kitDir, log, devDir: process.env.L4_KIT_DIR || '' });
+  const kit = createKit({ dir: kitDir, log, devDir: process.env.L4_KIT_DIR || '', maxBps: () => (Number(settings.get().dlLimit) || 0) * 1024 * 1024 });
+  kitRef = kit;
   let guestName = ''; try { guestName = require('os').userInfo().username; } catch (_) { /* нет имени */ }
   game = createGame({ settings, data, auth, platform, kit, runner, bus, log, guestName, dialog: { pickFolder: pick } });
   const updater = createUpdater({ bus, log, app, settings });
@@ -185,7 +201,8 @@ app.whenReady().then(async () => {
     onChange: (cur, prev) => {
       if (cur.minimizeToTray !== prev.minimizeToTray) { if (cur.minimizeToTray) createTray(cur.lang); else destroyTray(); }
       else if (cur.lang !== prev.lang && tray) createTray(cur.lang);
-      if (cur.autostart !== prev.autostart && app.isPackaged) app.setLoginItemSettings({ openAtLogin: cur.autostart }); },
+      if ((cur.autostart !== prev.autostart || cur.startHidden !== prev.startHidden) && app.isPackaged) app.setLoginItemSettings({ openAtLogin: cur.autostart, args: cur.startHidden ? ['--hidden'] : [] });
+    },
   });
   const services = buildServices(settings);
   const handlers = createHandlers(services);
@@ -198,10 +215,11 @@ app.whenReady().then(async () => {
   }
 
   bus.on('quit-after-start', () => { quitting = true; app.quit(); });
-  bus.on('minimize-to-tray', () => { if (win) win.hide(); });
+  bus.on('minimize-to-tray', () => { if (!win || win.isDestroyed()) return; if (tray) win.hide(); else win.minimize(); });
+  bus.on('minimize-window', () => { if (win && !win.isDestroyed()) win.minimize(); });
 
+  if (settings.get().minimizeToTray || startHidden) createTray(settings.get().lang); // трей до окна: скрытый старт проверяет его в ready-to-show
   createWindow(settings);
-  if (settings.get().minimizeToTray) createTray(settings.get().lang);
   const first = findDeepLink(process.argv); if (first) pendingLink = parseDeepLink(first);
   if (pendingLink && pendingLink.type === 'auth-callback' && authHandler) { const l = pendingLink; pendingLink = null; authHandler(l); }
 
@@ -224,6 +242,34 @@ app.whenReady().then(async () => {
   }, 30000);
   // роль и баланс перечитываем из БД: уровень админки могли изменить, пока лаунчер открыт
   setInterval(() => { if (!config.mock && services.auth.state().authed && !services.auth.state().offline) services.auth.revalidate().catch(() => {}); }, config.core.profileRefreshMs);
+
+  // системные уведомления, пока окно свёрнуто или скрыто: новая новость, сервер снова доступен
+  let seenNews = null; let lastStatus = {};
+  const notify = (title, body) => {
+    try {
+      if (!Notification.isSupported()) return;
+      const n = new Notification({ title, body, icon: path.join(__dirname, '..', '..', 'build', 'icon.png'), silent: false });
+      n.on('click', showWindow); n.show();
+    } catch (e) { log.warn('notify', e.message); }
+  };
+  const watchFeed = async () => {
+    if (config.mock) return;
+    const s = settings.get(); if (!s.notifyNews && !s.notifyServer) { seenNews = null; return; }
+    const r = await services.data.bootstrap(false); if (!r.ok || r.data.stale) return;
+    const away = !win || win.isDestroyed() || !win.isVisible() || win.isMinimized() || !win.isFocused();
+    const ids = new Set((r.data.news || []).map((n) => n.id));
+    if (seenNews && s.notifyNews && away) {
+      const fresh = (r.data.news || []).filter((n) => !seenNews.has(n.id));
+      if (fresh.length) notify(mt(s.lang, 'Новость 4ONE RP'), fresh[0].title || '');
+    }
+    seenNews = ids;
+    for (const srv of r.data.servers || []) {
+      const was = lastStatus[srv.id];
+      if (was && was !== 'online' && srv.status === 'online' && s.notifyServer && away) notify(srv.name, mt(s.lang, 'Сервер снова доступен — можно заходить'));
+      lastStatus[srv.id] = srv.status;
+    }
+  };
+  setTimeout(() => { watchFeed().catch(() => {}); setInterval(() => watchFeed().catch(() => {}), 2 * 60 * 1000); }, 15000);
 });
 
 app.on('before-quit', () => { quitting = true; });

@@ -4,7 +4,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Sandboxed-preload не может require() соседние файлы — списки продублированы.
 // Синхронность с core/contract.js проверяет test/preload.test.js.
 const CHANNELS = [
-  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics',
+  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache',
   'win:minimize', 'win:toggleMaximize', 'win:close',
   'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest',
   'data:bootstrap',
