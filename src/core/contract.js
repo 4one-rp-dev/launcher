@@ -7,15 +7,17 @@
 
 /** Запросы (invoke): рендерер -> main, ответ всегда { ok, data?, code?, message? } */
 const CHANNELS = [
-  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache',
+  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache', 'app:copyText',
   'win:minimize', 'win:toggleMaximize', 'win:close',
-  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest',
+  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest', 'auth:password', 'auth:mfa', 'auth:mfaCancel',
   'data:bootstrap',
   'servers:select',
   'game:state', 'game:detect', 'game:browse', 'game:setPath',
   'game:install', 'game:verify', 'game:play', 'game:cancel', 'game:uninstall',
+  'prefs:get', 'prefs:set', 'prefs:reset',
   'codes:redeem', 'codes:history',
   'account:security', 'account:sessions', 'account:revokeSession', 'account:revokeOthers', 'account:history', 'account:wallet', 'account:characters',
+  'account:mfaStatus', 'account:mfaSetup', 'account:mfaEnable', 'account:mfaDisable', 'account:mfaBackup',
   'settings:get', 'settings:set', 'settings:reset',
   'update:check', 'update:download', 'update:install',
 ];
@@ -33,6 +35,15 @@ const ERRORS = {
   profile_not_found: 'Для аккаунта не найден игровой профиль.',
   profile_lookup_failed: 'Не удалось загрузить профиль. Повторите позже.',
   launcher_access_denied: 'Доступ к лаунчеру не выдан. Обратитесь к администрации.',
+  // вход по логину и паролю, двухфакторная защита
+  invalid_credentials: 'Неверный логин или пароль.',
+  invalid_mfa_code: 'Неверный код. Проверьте, что время на телефоне точное, и введите новый код.',
+  mfa_expired: 'Время на ввод кода вышло. Войдите заново.',
+  rate_limited: 'Слишком много попыток. Подождите несколько минут и повторите.',
+  invalid_client: 'Эта версия лаунчера не может войти. Обновите лаунчер.',
+  mfa_already_enabled: 'Двухфакторная защита уже включена.',
+  mfa_not_pending: 'Начните подключение заново: отсканируйте новый QR-код.',
+  mfa_not_enabled: 'Двухфакторная защита не включена.',
   // сессия
   invalid_session: 'Сессия недействительна. Войдите заново.',
   session_revoked: 'Сессия отозвана. Войдите заново.',
@@ -63,6 +74,7 @@ const ERRORS = {
   client_signature: 'Клиент не прошёл проверку подлинности. Обновите лаунчер и повторите.',
   scripthook_failed: 'Не удалось установить игровой компонент ScriptHookV. Проверьте интернет и антивирус.',
   game_running: 'GTA V уже запущена.',
+  gta_settings_missing: 'Файл настроек GTA V ещё не создан. Запустите игру один раз — он появится.',
   launch_failed: 'Не удалось запустить игру.',
   cancelled: 'Отменено.',
   server_offline: 'Сервер сейчас недоступен.',

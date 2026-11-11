@@ -122,6 +122,18 @@ function createAccount(deps) {
     history: () => op('history', null, []),
     wallet: () => op('wallet', null, EMPTY.wallet),
     characters: () => op('characters', null, []),
+    mfaStatus: () => op('mfaStatus', null, { enabled: false, pending: false, backupLeft: 0 }),
+    /** Подключение: секрет и ссылка otpauth; QR рисуем здесь (картинка data:, без сети). */
+    async mfaSetup() {
+      const r = await op('mfaSetup', null, null);
+      if (!r.ok || !r.data || !r.data.otpauth) return r.ok ? fail('unknown') : r;
+      let qr = '';
+      try { qr = await require('qrcode').toDataURL(r.data.otpauth, { margin: 1, width: 240, errorCorrectionLevel: 'M', color: { dark: '#100e12', light: '#ffffff' } }); } catch (_) { /* покажем ключ текстом */ }
+      return ok({ secret: r.data.secret, otpauth: r.data.otpauth, qr });
+    },
+    mfaEnable: (code) => op('mfaEnable', { code }, {}),
+    mfaDisable: (code) => op('mfaDisable', { code }, {}),
+    mfaBackup: (code) => op('mfaBackup', { code }, {}),
   };
 }
 

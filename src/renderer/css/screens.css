@@ -31,15 +31,23 @@
 .steps .st small{display:block;margin-top:2px;color:var(--t3);font-size:12px}
 .lg-form{display:flex;flex-direction:column;gap:10px}
 .lg-form .field-msg{min-height:18px;text-align:center}
-.lg-foot{text-align:center;color:var(--t3);font-size:13px}
-.lg-guest{display:flex;flex-direction:column;gap:12px;padding-top:4px;border-top:1px solid var(--line, rgba(255,255,255,.06))}
-.lg-guest p{margin:12px 0 0;text-align:center;color:var(--t3);font-size:13px;line-height:1.5;text-wrap:pretty}
 .lg-demo{text-align:center;color:var(--t3);font-size:12px}
 .lg-wait{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;padding:6px 0 2px}
 .lg-wait b{font-size:14px}.lg-wait small{color:var(--t3);font-size:12.5px;line-height:1.45}
 .lg-wait .pb{width:100%}.lg-wait .pb .ind{display:block;width:38%;height:100%;border-radius:inherit;background:var(--ac);animation:lg-ind 1.4s var(--ease) infinite}
 @keyframes lg-ind{from{transform:translateX(-100%)}to{transform:translateX(260%)}}
 .lg-row{display:flex;gap:10px}
+.lg-fields{display:flex;flex-direction:column;gap:12px}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld > span:first-child{font-size:12.5px;color:var(--t2);font-weight:600}
+.pw{position:relative;display:block}
+.pw .inp{padding-right:48px}
+.pw .ib{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
+.pw .ib[aria-pressed=true]{color:var(--ac)}
+.lg-err{margin:0;padding:8px 12px;border-radius:var(--r1);background:color-mix(in srgb,var(--no) 14%,transparent);color:var(--t1);font-size:13px;line-height:1.4}
+.lg-or{display:flex;align-items:center;gap:12px;color:var(--t3);font-size:12px}
+.lg-or:before,.lg-or:after{content:"";flex:1;height:1px;background:var(--line)}
+.lg-foot{margin:0;text-align:center;color:var(--t3);font-size:12.5px;line-height:1.5;text-wrap:pretty}
 @media (prefers-reduced-motion:reduce){.lg-wait .pb .ind{animation:none;width:100%;opacity:.5}}
 .lg-demo b{color:var(--t2);letter-spacing:.06em}
 
@@ -111,3 +119,24 @@
 .acc button:hover{transform:scale(1.08)}
 .acc button[aria-checked=true]{border-color:#fff}
 @container view (max-width:560px){.srow{flex-wrap:wrap;gap:12px}.srow .st{flex-basis:100%}.sact{justify-content:flex-start}}
+
+/* настройки игры (меню F1): ползунок со значением, список устройств, клавиши, проверка микрофона */
+.rng{display:flex;align-items:center;gap:12px;flex:none}
+.rng input[type=range]{width:min(220px,28cqw);accent-color:var(--ac);cursor:pointer}
+.rng input[type=range]:disabled{opacity:.45;cursor:not-allowed}
+.rng output{min-width:46px;text-align:right;font:700 13px var(--sans);color:var(--t1);font-variant-numeric:tabular-nums}
+.sel{flex:none;width:min(280px,34cqw);height:36px;padding:0 10px;border-radius:var(--r2);border:1px solid var(--line);background:var(--p3);color:var(--t1);font:600 13px var(--sans);outline:0;cursor:pointer}
+.sel:focus{border-color:var(--ac);box-shadow:0 0 0 3px var(--ac-soft)}
+.sel:disabled{opacity:.45;cursor:not-allowed}
+.sel option{background:#1b1820;color:var(--t1)}
+.keycap{min-width:150px;justify-content:center;font-variant-numeric:tabular-nums}
+.keycap.wait{border-color:var(--ac);color:var(--ac);box-shadow:0 0 0 3px var(--ac-soft)}
+.pref-lock{display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:var(--r2);background:color-mix(in srgb,var(--warn) 12%,#1b1820);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);font-size:13px;line-height:1.45}
+.pref-lock svg.i{color:var(--warn);flex:none}
+.mic{display:flex;align-items:center;gap:12px;flex:none}
+.mic-pb{width:min(180px,22cqw)}
+.mic-pb i{transition:width .08s linear}
+.acc-srv{display:grid;place-items:center;background:var(--p3)!important;color:var(--t2)}
+.acc-srv svg.i{width:16px;height:16px}
+.acc{flex-wrap:wrap;justify-content:flex-end}
+.lg-fields .inp{border-color:var(--line2)}

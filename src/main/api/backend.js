@@ -89,6 +89,11 @@ function createBackend(api, log) {
         case 'security': case 'sessions': case 'history': case 'wallet': case 'characters': return api.get(`/v1/account/${op}`);
         case 'revoke': return api.post('/v1/account/sessions/revoke', { id: extra && extra.id });
         case 'revokeOthers': return api.post('/v1/account/sessions/revoke-others');
+        case 'mfaStatus': return api.get('/v1/account/2fa');
+        case 'mfaSetup': return api.post('/v1/account/2fa/setup');
+        case 'mfaEnable': return api.post('/v1/account/2fa/enable', { code: extra && extra.code });
+        case 'mfaDisable': return api.post('/v1/account/2fa/disable', { code: extra && extra.code });
+        case 'mfaBackup': return api.post('/v1/account/2fa/backup', { code: extra && extra.code });
         default: return fail('bad_request');
       }
     },

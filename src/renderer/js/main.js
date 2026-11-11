@@ -22,6 +22,8 @@ const ROUTES = {
   settings: { tip: 'Настройки', icon: 'gear', mod: settings },
 };
 const KEYS = ['home', 'news', 'codes', 'account', 'settings'];
+// ресурсы в левой панели: ключ ссылки (config.links / data.links), иконка, подпись
+const RES = () => [['discord', 'discord', 'Discord'], ['site', 'globe', t('Сайт')], ['kb', 'doc', t('Правила')], ['forum', 'chat', t('Форум')], ['donate', 'coin', t('Донат')], ['support', 'mega', t('Поддержка')]];
 const allowed = (r) => r !== 'admin' || canAdmin(S.auth.profile); // вкладка администрирования — только по праву admin.panel
 /** Внутри лаунчера: вошёл через сайт или играет без входа (гость) */
 export const inside = () => !!(S.auth.authed || S.auth.guest);
@@ -62,6 +64,7 @@ function buildRail() {
     <img class="brand m" src="assets/logo/mark.png" alt="4ONE RP" draggable="false">
     <i class="rail-ind" id="rail-ind"></i>
     ${['home', 'news', 'codes', 'admin'].map(railItem).join('')}
+    <div class="rail-res" id="rail-res"></div>
     <div class="grow"></div>
     <div class="me">
       <button class="acct" data-act="profile" data-tip="" aria-label="" aria-haspopup="dialog"><span class="avatar" id="rail-av">?</span><span class="mt"><b id="me-name"></b><small id="me-sub"></small></span></button>
@@ -83,6 +86,14 @@ function syncRail() {
   $('#rail-av', rail).textContent = (name || '?').trim().charAt(0).toUpperCase() || '?';
   $('#me-name', rail).textContent = name || (S.auth.authed ? t('Аккаунт') : t('Войти'));
   $('#me-sub', rail).innerHTML = p ? `<span class="n">${num(p.balance4c)}</span><span class="u"> 4Coin</span>` : '';
+  // ресурсы проекта: только ссылки, настроенные на сервере (data.links); в демо — все
+  const res = RES().filter(([k]) => !(S.data && Array.isArray(S.data.links)) || S.data.links.includes(k));
+  const rk = res.map((r) => r[0]).join(',') + '|' + getLang();
+  const rb = $('#rail-res', rail);
+  if (rb.dataset.k !== rk) {
+    rb.dataset.k = rk;
+    rb.innerHTML = res.length ? `<p class="rail-h">${t('Ресурсы')}</p><div class="res-row">${res.map(([k, i, n]) => `<button class="rk" data-res="${k}" title="${esc(n)}" aria-label="${esc(n)}">${ic(i)}</button>`).join('')}</div>` : '';
+  }
   const unread = S.settings.newsBadge === false ? 0 : (S.data && S.data.news || []).filter((n) => (n.date || '') > (S.settings.lastSeenNews || '')).length;
   const nb = $('[data-go=news] .bd', rail); nb.hidden = !unread || S.route === 'news'; nb.textContent = String(unread);
   moveInd();
@@ -98,6 +109,7 @@ function moveInd() {
 }
 delegate($('#rail'), 'click', '[data-go]', (el) => go(el.dataset.go));
 delegate($('#rail'), 'click', '[data-act=profile]', () => openProfile());
+delegate($('#rail'), 'click', '[data-res]', (el) => call('app:openExternal', el.dataset.res).then((r) => { if (!r.ok) toast('err', r.message); }));
 
 /** Гость открыл раздел, где нужен аккаунт: предлагаем войти. */
 async function askLogin(route) {
@@ -158,7 +170,7 @@ export async function loadData(force) {
 
 // ---------- подписки на состояние ----------
 subscribe((st, what) => {
-  const net = $('#net'); net.dataset.state = st.net ? 'on' : 'off'; $('#net-text').textContent = st.net ? t('Онлайн') : t('Нет связи');
+  // индикатора «Онлайн» в заголовке больше нет (просьба владельца): о потере связи говорит баннер
   if (['auth', 'data', 'settings', 'lang', 'route'].includes(what)) syncRail();
   if (what === 'auth' && st.auth.authed && st.route === 'admin' && !canAdmin(st.auth.profile)) go('home', true); // право отозвали, пока вкладка открыта
   if (what === 'settings' || what === 'boot') applyLook(st.settings);
@@ -181,6 +193,9 @@ on('auth:changed', (a) => {
     if (!was) loadData(true).then(() => go('home', true));
     else if (NEED_LOGIN.has(S.route)) go('home', true);
     else if (cur && cur.update) cur.update(S, 'auth');
+  } else if (!a.authed && S.route === 'login' && curName === 'login') {
+    // экран входа уже открыт (ожидание браузера, шаг с кодом 2FA): не пересоздаём — поля и ошибки остаются
+    if (cur && cur.update) cur.update(S, 'auth');
   } else if (!a.authed) {
     if (a.reason && a.reason !== 'logout') toast('warn', { invalid_session: t('Сессия недействительна. Войдите заново.'), session_revoked: t('Сессия отозвана. Войдите заново.'), session_expired: t('Сессия истекла. Войдите заново.'), launcher_access_denied: t('Доступ к лаунчеру не выдан.') }[a.reason] || t('Войдите заново.'));
     go('login', true);

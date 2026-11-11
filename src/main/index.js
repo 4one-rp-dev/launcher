@@ -90,6 +90,39 @@ function createTray(lang) {
   } catch (e) { log.warn('tray', e.message); }
 }
 
+// ---------- настройки игры (F1 и settings.xml) ----------
+function createPrefs({ runner, log }) {
+  const { createPlayerCfg, DEFAULTS } = require('./player-cfg');
+  const { createGtaSettings } = require('./gta-settings');
+  const cfg = createPlayerCfg({ log });
+  const gta = createGtaSettings({ documents: app.getPath('documents') });
+  const GTA_KEYS = ['windowMode', 'vsync'];
+  async function get(force) {
+    const [devices, running] = await Promise.all([cfg.devices(force), runner.isRunning(config.game.exe)]);
+    return ok({ cfg: cfg.read(), gta: gta.read(), devices, running, file: cfg.file });
+  }
+  return {
+    get,
+    async set(patch) {
+      if (await runner.isRunning(config.game.exe)) return fail('game_running'); // игра перезапишет файл своими значениями
+      const g = {}; const c = {};
+      for (const [k, v] of Object.entries(patch)) { if (GTA_KEYS.includes(k)) g[k] = v; else if (k in DEFAULTS) c[k] = v; }
+      try {
+        if (Object.keys(c).length) cfg.write(c);
+        if (Object.keys(g).length) { const st = gta.read(); if (!st.exists) return fail('gta_settings_missing'); gta.write(g); }
+      } catch (e) { log.warn('prefs', e.message); return fail('no_write_access'); }
+      return get(false);
+    },
+    async reset(group) {
+      if (await runner.isRunning(config.game.exe)) return fail('game_running');
+      try {
+        if (group === 'all') { const p = {}; for (const k of Object.keys(DEFAULTS)) p[k] = DEFAULTS[k]; cfg.write(p); } else cfg.reset(group);
+      } catch (e) { log.warn('prefs', e.message); return fail('no_write_access'); }
+      return get(false);
+    },
+  };
+}
+
 // ---------- сервисы ----------
 function buildServices(settings) {
   const realWin = {
@@ -122,6 +155,7 @@ function buildServices(settings) {
       } catch (_) { return fail('bad_request'); }
       await shell.openExternal(String(url)); return ok();
     },
+    async copyText(text) { clipboard.writeText(String(text)); return ok(); },
     async cacheInfo() {
       if (!kitRef) return ok({ dir: '', bytes: 0 });
       return ok({ dir: kitRef.dir, bytes: kitRef.size() });
@@ -154,7 +188,7 @@ function buildServices(settings) {
     const { createMock } = require('../mock');
     const m = createMock({ bus, scenario: config.mockScenario, frozen: process.env.L4_MOCK_FROZEN === '1' });
     game = m.services.game;
-    return Object.assign({}, m.services, { win: realWin, app: Object.assign({}, m.services.app, { openExternal: appSvc.openExternal, openPath: appSvc.openPath, copyDiagnostics: appSvc.copyDiagnostics, info: appSvc.info }), log, settings });
+    return Object.assign({}, m.services, { win: realWin, app: Object.assign({}, m.services.app, { openExternal: appSvc.openExternal, openPath: appSvc.openPath, copyDiagnostics: appSvc.copyDiagnostics, copyText: appSvc.copyText, info: appSvc.info }), log, settings });
   }
 
   const { createCoreApi } = require('./api/core');
@@ -191,12 +225,16 @@ function buildServices(settings) {
   let guestName = ''; try { guestName = require('os').userInfo().username; } catch (_) { /* нет имени */ }
   game = createGame({ settings, data, auth, platform, kit, runner, bus, log, guestName, dialog: { pickFolder: pick } });
   const updater = createUpdater({ bus, log, app, settings });
-  return { app: appSvc, win: realWin, auth, data, game, codes, account, settings, updater, log };
+  const prefs = createPrefs({ runner, log });
+  return { app: appSvc, win: realWin, auth, data, game, codes, account, settings, updater, log, prefs };
 }
 
 // ---------- запуск ----------
 app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  // разрешаем только микрофон и только окну лаунчера — для «Проверить микрофон» в настройках голоса
+  const ourWin = (wc) => !!(win && !win.isDestroyed() && wc === win.webContents);
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => cb(perm === 'media' && ourWin(wc) && (details.mediaTypes || []).every((m) => m === 'audio')));
+  session.defaultSession.setPermissionCheckHandler((wc, perm) => perm === 'media' && ourWin(wc));
   const settings = createSettings(userData, {
     onChange: (cur, prev) => {
       if (cur.minimizeToTray !== prev.minimizeToTray) { if (cur.minimizeToTray) createTray(cur.lang); else destroyTray(); }

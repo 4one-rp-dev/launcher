@@ -10,9 +10,6 @@ import { zoomNow } from '../scale.js';
 const HUES = ['#b9a3ff', '#9fd4b4', '#f0a0b4', '#9cc4f5', '#dcc49c'];
 export const hueOf = (id) => HUES[[...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % HUES.length];
 
-// показываем только настроенные на сервере ссылки (data.links); в демо и без данных — все
-const LINKS = () => [['discord', 'discord', 'Discord', t('Сообщество и поддержка')], ['site', 'globe', t('Сайт'), t('Новости и личный кабинет')], ['donate', 'coin', t('Донат'), t('Пополнить 4Coin')], ['kb', 'doc', t('Правила'), t('Правила и законы штата')]]
-  .filter(([k]) => !(S.data && Array.isArray(S.data.links)) || S.data.links.includes(k));
 const NOTICE = () => ({
   'no-gta': ['folder', t('Ещё нет GTA V?'), t('Нужна GTA V Legacy из Rockstar Games Launcher, Steam или Epic Games. Уже установлена — укажите её папку.')],
   unsupported: ['alert', t('Нужна GTA V Legacy'), t('Найдена другая версия игры. Проект работает на GTA V Legacy 1.0.3889.0 — укажите её папку.')],
@@ -71,7 +68,6 @@ export function mount(root, ctx) {
       </div>
       <div class="hero-stats">
         <div class="hs hs-on"><b class="num">${num(srv.online)}<small> / ${num(srv.max)}</small></b><span>${t('Сейчас играют')}</span><div class="pb"><i style="--p:${pct}"></i></div></div>
-        ${srv.ping ? `<div class="hs"><b class="num">${srv.ping}<small> ${t('мс')}</small></b><span>${t('Пинг')}</span></div>` : ''}
       </div>
       <div class="hero-foot" id="hero-foot"></div>`;
     renderFoot();
@@ -82,20 +78,22 @@ export function mount(root, ctx) {
     const foot = $('#hero-foot', hero); if (!foot) return;
     const srv = selectedServer(); const g = S.game; const v = phaseView(g, srv, S.net);
     const note = NOTICE()[g && g.phase];
-    const key = (note ? 'n' : '') + (v.pct != null ? 'p' : '') + (v.cancel ? 'c' : '');
+    const key = (v.pct != null ? 'p' : '') + (v.cancel ? 'c' : '');
     if (foot.dataset.k !== key) {
       foot.dataset.k = key;
       foot.innerHTML = `
-        ${note ? `<div class="notice"><span class="pi">${ic(note[0])}</span><div class="pt"><b>${esc(note[1])}</b><span>${esc(note[2])}</span></div></div>` : ''}
         <div class="hero-act">
           <button class="bt xl play" data-act="play"></button>
           ${v.cancel ? `<button class="bt g xl" data-act="cancel">${t('Отмена')}</button>` : `<button class="ib lg" data-act="verify" aria-label="${t('Проверить файлы')}" title="${t('Проверить файлы')}">${ic('shield')}</button><button class="ib lg" data-act="folder" aria-label="${t('Открыть папку игры')}" title="${t('Открыть папку игры')}">${ic('folder')}</button>`}
-          <div class="hero-st"><div class="hs-text" id="hs-text"></div>${v.pct != null ? `<div class="pb thick" id="hs-pb" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i></i></div>` : ''}</div>
+          <div class="hero-st"><div class="hs-text" id="hs-text"></div><small class="hs-sub" id="hs-sub" hidden></small>${v.pct != null ? `<div class="pb thick" id="hs-pb" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i></i></div>` : ''}</div>
         </div>`;
     }
     const btn = $('.play', foot); btn.disabled = !!v.disabled; btn.classList.toggle('busy', !!v.busy); btn.classList.toggle('idle', !v.disabled && v.action === 'play');
     btn.innerHTML = (v.busy ? '' : ic(v.action === 'browse' ? 'folder' : v.action === 'install' ? 'down2' : 'play')) + esc(v.label);
     $('#hs-text', foot).innerHTML = statusHtml(v);
+    // подсказка по фазе — одной строкой под статусом, а не отдельной плашкой над кнопками
+    const sub = $('#hs-sub', foot); const hint = note && v.pct == null ? note[2] : '';
+    sub.hidden = !hint; if (sub.textContent !== hint) sub.textContent = hint;
     const pb = $('#hs-pb', foot); if (pb) { pb.setAttribute('aria-valuenow', String(Math.round(v.pct * 100))); $('i', pb).style.setProperty('--p', v.pct); }
     const ver = $('[data-act=verify]', foot); if (ver) ver.disabled = !(g && ['ready', 'needs-update', 'error'].includes(g.phase));
   }
@@ -134,8 +132,7 @@ export function mount(root, ctx) {
     side.innerHTML = `
       <header class="sec-h"><h2>${t('Новости')}</h2><span class="sp"></span><button class="link" data-act="allnews">${t('Все новости')}</button></header>
       ${!S.data ? '<div class="sk" style="height:170px"></div>' : !list.length ? `<div class="nw-empty">${ic('news')}<span><b>${t('Новостей пока нет')}</b><small>${t('Здесь появятся обновления, ивенты и анонсы проекта.')}</small></span></div>` : `
-      <div class="tiles">${tile(f, ' big')}${rest.map((n) => tile(n)).join('')}</div>`}
-      <div class="quick">${LINKS().map(([k, i, n, d]) => `<button class="qk" data-act="link" data-k="${k}">${ic(i)}<span class="qk-t"><b>${esc(n)}</b><small>${esc(d)}</small></span>${ic('ext')}</button>`).join('')}</div>`;
+      <div class="tiles">${tile(f, ' big')}${rest.map((n) => tile(n)).join('')}</div>`}`;
   }
 
   // ---------- действия ----------

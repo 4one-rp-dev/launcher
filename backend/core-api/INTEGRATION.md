@@ -49,10 +49,21 @@ const me = (await (await fetch(`${API}/v1/me`, { headers: { Authorization: `Bear
 | кошелёк, персонажи, сессии, история входов, безопасность | `GET /v1/account/wallet\|characters\|sessions\|history\|security` |
 | завершить сессию | `POST /v1/account/sessions/revoke` `{ id }`, `/sessions/revoke-others` |
 
-Ответ: `{ "data": … }`, ошибка: `{ "error": "<код>", "error_description": "…" }` (коды: `invalid_token` 401, `forbidden` 403, `promo_*`, `busy` 429).
+| двухфакторная защита | `GET /v1/account/2fa`, `POST /v1/account/2fa/setup\|enable\|disable\|backup` (см. README) |
+
+Ответ: `{ "data": … }`, ошибка: `{ "error": "<код>", "error_description": "…" }` (коды: `invalid_token` 401, `forbidden` 403, `promo_*`, `busy` 429, `invalid_mfa_code` 401, `rate_limited` 429, `mfa_already_enabled`/`mfa_not_pending`/`mfa_not_enabled` 409).
+
+**2FA на сайте.** Сайту ничего делать не нужно: если у игрока включена 2FA, страница `/oauth/authorize` сама покажет второй шаг (код из приложения или резервный) и только потом вернёт браузер на `redirect_uri` с кодом. Включение в личном кабинете: `setup` → показать QR из `otpauth` (и `secret` текстом) → `enable {code}` → показать `backupCodes` один раз.
 
 ## 5. Лаунчер
 Использует тот же API: клиент `4one-launcher`, возврат `gta4one://auth/callback` (уже есть по умолчанию). Адрес API лаунчер берёт из `L4_CORE_URL` (`src/main/config.js`, `core.url`).
+Прямой вход без браузера:
+```js
+let r = await post('/v1/auth/login', { client_id: '4one-launcher', login, password, device_name });
+if (r.mfa_required) r = await post('/v1/auth/mfa', { client_id: '4one-launcher', mfa_token: r.mfa_token, code }); // 6 цифр или XXXX-XXXX
+// r: { access_token, token_type, expires_in, refresh_token, scope } — дальше как после /oauth/token
+```
+`invalid_mfa_code` 401 — попросить код ещё раз с тем же `mfa_token`; `mfa_expired` 400 — вернуть на ввод пароля; `rate_limited` 429 — подождать.
 
 ## 6. Что на стороне игры (чтобы всё работало вместе)
 - Колонка `accounts.alvl` и её чтение/запись в игре — gamemod, миграция `009_accounts_alvl.sql`, `Core/AdminAuth.cs`.
@@ -60,4 +71,4 @@ const me = (await (await fetch(`${API}/v1/me`, { headers: { Authorization: `Bear
 - Регистрацию нового аккаунта API не делает: аккаунты создаются в игре.
 
 ## 7. Чего пока нет
-Регистрации и смены пароля на сайте, подтверждения почты, 2FA, экрана согласия для сторонних приложений (клиенты только свои), админ-разделов («Игроки», «Журнал», «Управление проектом» — право есть, страниц нет).
+Регистрации и смены пароля на сайте, подтверждения почты, 2FA при входе в саму игру, экрана согласия для сторонних приложений (клиенты только свои), админ-разделов («Игроки», «Журнал», «Управление проектом» — право есть, страниц нет).

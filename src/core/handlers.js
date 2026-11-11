@@ -20,6 +20,9 @@ function str(v, max) { return typeof v === 'string' && v.length > 0 && v.length 
 /**
  * @param {object} s  сервисы: app, win, auth, data, game, codes, account, settings, updater
  */
+// код 2FA: 6 цифр из приложения или резервный XXXX-XXXX
+const MFA_RE = /^(?:[0-9]{6}|[A-Za-z2-9]{4}-?[A-Za-z2-9]{4})$/;
+
 function createHandlers(s) {
   const guard = (fn) => async (...a) => {
     try { return await fn(...a); }
@@ -42,6 +45,7 @@ function createHandlers(s) {
     'app:copyDiagnostics': async () => s.app.copyDiagnostics(),
     'app:cacheInfo': async () => s.app.cacheInfo(),
     'app:clearCache': async () => s.app.clearCache(),
+    'app:copyText': async (text) => (str(text, 4000) ? s.app.copyText(String(text)) : fail('bad_request')),
 
     'win:minimize': async () => { s.win.minimize(); return ok(); },
     'win:toggleMaximize': async () => ok(s.win.toggleMaximize()),
@@ -53,6 +57,13 @@ function createHandlers(s) {
     'auth:cancel': async () => s.auth.cancel(),
     'auth:logout': async () => s.auth.logout(),
     'auth:guest': async (on) => s.auth.guest(on !== false),
+    // вход по логину и паролю прямо в лаунчере: пароль уходит только в Core API по https и нигде не хранится
+    'auth:password': async (login, password) => {
+      if (!str(login, 64) || typeof password !== 'string' || !password || password.length > 128) return fail('invalid_credentials');
+      return s.auth.passwordLogin(String(login).trim(), password);
+    },
+    'auth:mfa': async (code) => (MFA_RE.test(String(code || '')) ? s.auth.submitMfa(String(code)) : fail('invalid_mfa_code')),
+    'auth:mfaCancel': async () => s.auth.cancelMfa(),
 
     'data:bootstrap': async (force) => s.data.bootstrap(!!force),
 
@@ -62,6 +73,10 @@ function createHandlers(s) {
     },
 
     'game:state': async () => ok(s.game.getState()),
+    // настройки игры: меню F1 клиента (player.cfg) и settings.xml самой GTA V
+    'prefs:get': async (force) => s.prefs.get(!!force),
+    'prefs:set': async (patch) => (patch && typeof patch === 'object' && !Array.isArray(patch) && Object.keys(patch).length <= 8 ? s.prefs.set(patch) : fail('bad_request')),
+    'prefs:reset': async (group) => (['keys', 'look', 'all'].includes(group) ? s.prefs.reset(group) : fail('bad_request')),
     'game:detect': async () => s.game.detect(),
     'game:browse': async () => s.game.browse(),
     'game:setPath': async (p) => (str(p, 1024) ? s.game.setPath(p) : fail('bad_request')),
@@ -86,6 +101,11 @@ function createHandlers(s) {
     'account:history': async () => s.account.history(),
     'account:wallet': async () => s.account.wallet(),
     'account:characters': async () => s.account.characters(),
+    'account:mfaStatus': async () => s.account.mfaStatus(),
+    'account:mfaSetup': async () => s.account.mfaSetup(),
+    'account:mfaEnable': async (code) => (/^[0-9]{6}$/.test(String(code || '')) ? s.account.mfaEnable(String(code)) : fail('invalid_mfa_code')),
+    'account:mfaDisable': async (code) => (MFA_RE.test(String(code || '')) ? s.account.mfaDisable(String(code)) : fail('invalid_mfa_code')),
+    'account:mfaBackup': async (code) => (/^[0-9]{6}$/.test(String(code || '')) ? s.account.mfaBackup(String(code)) : fail('invalid_mfa_code')),
 
     'settings:get': async () => ok(s.settings.get()),
     'settings:reset': async () => ok(await s.settings.reset()),

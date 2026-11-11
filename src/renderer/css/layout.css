@@ -40,14 +40,23 @@
 .rail .grow{flex:1;min-height:8px}
 .rail-ind{position:absolute;left:0;top:0;width:3px;height:22px;border-radius:0 3px 3px 0;background:var(--ac);box-shadow:0 0 14px var(--ac);transform:translateY(var(--y,0));transition:transform .32s var(--ease),opacity .2s;opacity:0}
 .rail-ind.on{opacity:1}
-.nv{position:relative;display:flex;align-items:center;gap:12px;width:100%;height:44px;padding:0 12px;border-radius:var(--r2);border:0;background:none;color:var(--t3);font:600 14px var(--sans);text-align:left;white-space:nowrap;transition:background-color var(--d-fast),color var(--d-fast),transform .08s}
-.nv svg.i{width:20px;height:20px;flex:none;transition:transform .2s var(--ease)}
+.nv{position:relative;display:flex;align-items:center;gap:11px;width:100%;height:40px;padding:0 12px;border-radius:var(--r2);border:0;background:none;color:var(--t3);font:600 13.5px var(--sans);text-align:left;white-space:nowrap;transition:background-color var(--d-fast),color var(--d-fast),transform .08s}
+.nv svg.i{width:19px;height:19px;flex:none;transition:transform .2s var(--ease)}
 .nv .lb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.nv:hover{background:var(--glass);color:var(--t1)}
+/* выделение без рамки и заливки (как в лаунчере FloV): при наведении — мягкий свет слева, у текущего раздела — акцент и полоска */
+.nv:hover{background:radial-gradient(140px 44px at 0 50%,color-mix(in srgb,var(--ac2) 14%,transparent),transparent 70%);color:var(--t1)}
 .nv:hover svg.i{transform:scale(1.08)}
 .nv:active{transform:scale(.98)}
-.nv[aria-current=page]{color:var(--t1);background:color-mix(in srgb,var(--ac2) 26%,var(--p2))}
-.nv[aria-current=page] svg.i{color:var(--ac)}
+.nv[aria-current=page]{color:var(--t1);background:radial-gradient(160px 44px at 0 50%,color-mix(in srgb,var(--ac2) 20%,transparent),transparent 72%)}
+.nv[aria-current=page] svg.i{color:var(--ac);transform:scale(1.1);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--ac) 55%,transparent))}
+.rail-res{display:flex;flex-direction:column;gap:2px;margin-top:14px}
+.rail-res:empty{display:none}
+.rail-h{margin:0 0 4px;padding:0 12px;font:600 11px var(--sans);color:var(--t4,var(--t3));letter-spacing:.06em}
+.res-row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding:0 4px}
+.rk{width:100%;height:32px;display:grid;place-items:center;padding:0;border:0;border-radius:var(--r1);background:none;color:var(--t3);transition:color var(--d-fast),background-color var(--d-fast),transform .15s var(--ease)}
+.rk svg.i{width:18px;height:18px}
+.rk:hover{color:var(--t1);background:radial-gradient(closest-side,color-mix(in srgb,var(--ac2) 22%,transparent),transparent);transform:translateY(-1px)}
+.rk:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
 .nv .bd{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--ac2);color:#fff;font:700 11.5px/20px var(--sans);text-align:center}
 .nv .bd[hidden]{display:none}
 .nv:focus-visible,.acct:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
@@ -70,6 +79,10 @@
   .nv{width:48px;height:48px;padding:0;justify-content:center}
   .nv svg.i{width:22px;height:22px}
   .nv .lb{display:none}
+  .rail-h{display:none}
+  .rail-res{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);align-items:center}
+  .res-row{grid-template-columns:1fr;padding:0;gap:2px}
+  .rk{width:44px;height:36px}
   .nv .bd{position:absolute;right:2px;top:2px;min-width:17px;height:17px;padding:0 4px;font-size:10.5px;line-height:17px;box-shadow:0 0 0 2px #19151f}
   .rail-ind{margin-top:0}
   .me{flex-direction:column;border:0;background:none;padding:0;gap:4px}
@@ -99,6 +112,7 @@
 
 /* Узкое окно: панель уходит вниз полосой */
 @container app (max-width:760px){
+  .rail-res{display:none}
   .acct .mt{display:none}
   .shell{flex-direction:column-reverse;gap:10px}
   .rail{width:auto;height:62px;flex-direction:row;justify-content:space-around;align-items:center;padding:0 8px;gap:2px}

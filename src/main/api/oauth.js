@@ -8,8 +8,8 @@ const b64url = (buf) => Buffer.from(buf).toString('base64').replace(/\+/g, '-').
 
 /**
  * Клиент OAuth 2.0 (Authorization Code + PKCE, RFC 7636/8252) к Core API.
- * Пароль вводится только на странице входа в системном браузере и в лаунчер не попадает:
- * лаунчер получает одноразовый код по ссылке gta4one://auth/callback и меняет его на токены.
+ * Два способа входа: страница в системном браузере (код по ссылке gta4one://auth/callback) или прямо в лаунчере
+ * по логину и паролю (/v1/auth/login, затем /v1/auth/mfa, если включена двухфакторная защита). Пароль не хранится.
  */
 function createOAuthClient(opts) {
   const o = opts || {};
@@ -36,6 +36,7 @@ function createOAuthClient(opts) {
   const { request } = createHttp({ url: base, timeoutMs, fetch: doFetch, log });
 
   const form = (obj) => ({ method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: new URLSearchParams(obj).toString() });
+  const json = (obj) => ({ method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(obj) });
   const toTokens = (d) => (d && d.access_token && d.refresh_token
     ? ok({ access: d.access_token, refresh: d.refresh_token, expiresAt: Date.now() + (Number(d.expires_in) || 900) * 1000 })
     : fail('login_failed'));
@@ -56,6 +57,17 @@ function createOAuthClient(opts) {
       return r.data && r.data.data ? ok(r.data.data) : fail('profile_lookup_failed');
     },
     async revoke(token) { return request('/oauth/revoke', form({ token, client_id: clientId })); },
+    /** Прямой вход: токены или { mfa: true, token } — нужен код двухфакторной защиты. */
+    async passwordLogin(login, password, deviceName) {
+      const r = await request('/v1/auth/login', json({ client_id: clientId, login, password, device_name: String(deviceName || '').slice(0, 80) }));
+      if (!r.ok) return r;
+      if (r.data && r.data.mfa_required && r.data.mfa_token) return ok({ mfa: true, token: r.data.mfa_token, methods: r.data.methods || ['totp'] });
+      return toTokens(r.data);
+    },
+    async mfaLogin(mfaToken, code) {
+      const r = await request('/v1/auth/mfa', json({ client_id: clientId, mfa_token: mfaToken, code }));
+      return r.ok ? toTokens(r.data) : r;
+    },
   };
 }
 

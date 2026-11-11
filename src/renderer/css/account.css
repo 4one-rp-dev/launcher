@@ -1,11 +1,14 @@
 /* ===== Аккаунт и настройки: боковое меню + панели. Панели не пересоздаются — вкладка не дёргает прокрутку. ===== */
 .pg{display:flex;flex-direction:column;gap:16px;padding-bottom:6px}
-.sub{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:5px;margin:0 0 0;border-radius:var(--r2);border:1px solid rgba(255,255,255,.06);background:#1a1721;overflow-x:auto;scrollbar-width:none;align-self:flex-start;max-width:100%}
+.sub{position:sticky;top:0;z-index:5;display:flex;gap:4px;padding:5px;margin:0 0 0;border-radius:var(--r2);border:1px solid rgba(255,255,255,.06);background:#1a1721;flex-wrap:wrap;align-self:flex-start;max-width:100%} /* вкладок много (настройки — 9): переносятся строкой ниже, а не прячутся за край */
 .sub::-webkit-scrollbar{display:none}
 .sb{position:relative;flex:none;display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border:0;border-radius:var(--r1);background:none;color:var(--t3);font:600 13.5px var(--sans);white-space:nowrap;transition:background-color var(--d-fast),color var(--d-fast)}
 .sb svg.i{width:17px;height:17px;flex:none}
-.sb:hover{background:var(--glass);color:var(--t1)}
-.sb[aria-selected=true]{color:var(--t1);background:color-mix(in srgb,var(--ac2) 30%,var(--p2))}
+.sb:hover{background:radial-gradient(80% 140% at 50% 100%,color-mix(in srgb,var(--ac2) 14%,transparent),transparent 72%);color:var(--t1)}
+/* выбранная вкладка — как пункт левой панели: свет и акцентная полоска, без заливки прямоугольником */
+.sb[aria-selected=true]{color:var(--t1);background:radial-gradient(80% 140% at 50% 100%,color-mix(in srgb,var(--ac2) 24%,transparent),transparent 72%)}
+.sb:after{content:"";position:absolute;left:30%;right:30%;bottom:2px;height:2px;border-radius:2px;background:var(--ac);box-shadow:0 0 10px var(--ac);transform:scaleX(0);transition:transform .25s var(--ease)}
+.sb[aria-selected=true]:after{transform:scaleX(1)}
 .sb[aria-selected=true] svg.i{color:var(--ac)}
 .sb:focus-visible{outline:2px solid var(--ac);outline-offset:-2px}
 .panes{min-width:0}
@@ -67,3 +70,17 @@
 .adm-card p{margin:0 0 12px;color:var(--t2);font-size:13.5px;line-height:1.5}
 .adm-card.lock{opacity:.62}
 .adm-card .soon{display:block;margin-top:10px;color:var(--t3);font-size:12px}
+
+/* двухфакторная защита: мастер подключения во вкладке «Безопасность» */
+.mfa-setup{display:flex;gap:20px;align-items:flex-start;padding:16px 20px 4px;flex-wrap:wrap}
+.mfa-qr{flex:none;width:200px;height:200px;border-radius:var(--r2);background:#fff;padding:8px;display:grid;place-items:center}
+.mfa-qr img{width:184px;height:184px;image-rendering:pixelated}
+.mfa-steps{flex:1 1 260px;margin:0;padding-left:20px;display:flex;flex-direction:column;gap:10px;color:var(--t2);font-size:13px;line-height:1.5}
+.mfa-key{display:block;margin-top:6px;padding:8px 10px;border-radius:var(--r1);background:var(--p3);color:var(--t1);font:600 13px/1.4 ui-monospace,Consolas,monospace;letter-spacing:.06em;word-break:break-all;cursor:copy;user-select:text}
+.mfa-key:hover{background:color-mix(in srgb,var(--ac2) 16%,var(--p3))}
+.mfa-act{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 20px}
+.mfa-act .inp.code{width:200px;height:42px;font-size:18px;letter-spacing:.2em}
+.mfa-note{margin:0;padding:14px 20px 0;color:var(--t2);font-size:13px;line-height:1.5}
+.mfa-codes{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;padding:14px 20px 0;user-select:text}
+.mfa-codes code{padding:8px 10px;border-radius:var(--r1);background:var(--p3);text-align:center;font:600 14px ui-monospace,Consolas,monospace;letter-spacing:.08em;color:var(--t1)}
+#mfa-box .lg-err{margin:0 20px 14px}

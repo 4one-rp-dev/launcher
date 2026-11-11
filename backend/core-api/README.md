@@ -41,7 +41,9 @@ npm start
 | | |
 |---|---|
 | `GET /oauth/authorize` | страница входа (HTML) в браузере. Параметры: `response_type=code`, `client_id`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, необязательно `device_name` |
-| `POST /oauth/authorize` | форма; успех → возврат на `redirect_uri?code=…&state=…` |
+| `POST /oauth/authorize` | форма; успех → возврат на `redirect_uri?code=…&state=…`. Если у аккаунта включена 2FA — вместо возврата страница второго шага (поле кода, подписанный `mtx` на 5 минут); её POST `{mtx, code}` на тот же адрес → обычный возврат с кодом |
+| `POST /v1/auth/login` `{client_id, login, password, device_name}` | прямой вход (только клиенты с `trusted: true`). Без 2FA → те же токены, что `/oauth/token`; с 2FA → `{mfa_required:true, mfa_token, methods:['totp','backup']}` (токен 5 минут, сессии ещё нет). Ошибки: `invalid_client` 400, `invalid_credentials` 401, `rate_limited` 429 |
+| `POST /v1/auth/mfa` `{client_id, mfa_token, code}` | второй шаг: 6 цифр TOTP или резервный `XXXX-XXXX` (регистр и дефис не важны) → токены. Ошибки: `invalid_mfa_code` 401, `mfa_expired` 400 (истёк, подделан, другой клиент, 5 неверных попыток на токен), `rate_limited` 429 (10 неверных кодов на логин за 10 минут) |
 | `POST /oauth/token` | `authorization_code` (+`code_verifier`) или `refresh_token` → `{ access_token, refresh_token, expires_in:900 }` |
 | `POST /oauth/revoke` | отзыв по access- или refresh-токену |
 | `GET /v1/me` | профиль и роль (`Authorization: Bearer`) |
@@ -49,6 +51,11 @@ npm start
 | `POST /v1/codes/redeem` `{code}` · `GET /v1/codes/history` | промокоды; ошибки `promo_not_found` 404, `promo_expired` 410, `promo_used`/`promo_limit` 409, `busy` 429 |
 | `GET /v1/account/security\|sessions\|history\|wallet\|characters` | раздел «Аккаунт» |
 | `POST /v1/account/sessions/revoke` `{id}` · `/sessions/revoke-others` | завершить чужую сессию / все остальные |
+| `GET /v1/account/2fa` | `{data:{enabled, pending, backupLeft, enabledAt}}` |
+| `POST /v1/account/2fa/setup` | `{data:{secret, otpauth}}` — новый ожидающий секрет (заменяет прежний); если 2FA включена — `mfa_already_enabled` 409 |
+| `POST /v1/account/2fa/enable` `{code}` | код из приложения → `{data:{enabled:true, backupCodes:[10]}}` (коды показываются один раз); `invalid_mfa_code` 401, `mfa_not_pending` 409 |
+| `POST /v1/account/2fa/disable` `{code}` | TOTP или резервный → `{data:{enabled:false}}`; `invalid_mfa_code` 401, `mfa_not_enabled` 409 |
+| `POST /v1/account/2fa/backup` `{code}` | только TOTP → `{data:{backupCodes:[10]}}`, старые коды сгорают; `invalid_mfa_code` 401, `mfa_not_enabled` 409. У enable/disable/backup общий лимит с входом: `rate_limited` 429 |
 | `GET /v1/admin/capabilities` | каталог прав; только с `admin.panel` |
 | `POST /v1/internal/servers/<id>/stats` | `{ online, max, status }` от игры или cron, заголовок `X-Internal-Token` (= `CORE_INTERNAL_TOKEN`, от 16 знаков) |
 | `GET /healthz` | живость |
@@ -60,11 +67,11 @@ API **не меняет `accounts.redbucks`**: онлайн-игрок хран�
 
 ## Что не из игры
 Серверы, новости, версия клиента и объявление — в `core_*`, сейчас заполняются SQL (`sql/seed.example.sql`), позже — вкладкой «Администрирование». Онлайн обновляет `POST /v1/internal/servers/<id>/stats`.
-История кошелька — только операции через Core API; внутриигровые списания в `mainlogs`. В `accounts` нет подтверждения почты и 2FA — в «Безопасности» показываются как «нет».
+История кошелька — только операции через Core API; внутриигровые списания в `mainlogs`. В `accounts` нет подтверждения почты — в «Безопасности» показывается как «нет». 2FA хранится в своих таблицах `core_mfa`, `core_mfa_backup` (`sql/003_mfa.sql`), `security.twoFactor` — включена ли она на самом деле. **Игра 2FA не спрашивает**: вход в игру по-прежнему по паролю из `accounts`.
 Статику (файлы клиента, обновления лаунчера) отдаёт обычный веб-сервер (nginx), не API.
 
 ## Безопасность
-Authorization Code + PKCE (S256 обязателен), `state`; форма входа подписана (HMAC); код одноразовый (условный UPDATE), 2 минуты; токены 256 бит, в БД только sha256 с перцем; access 15 минут; refresh 60 дней, **вращается**, повтор старого отзывает сессию; перебор: 5 неудач на логин+IP и 30 на IP за 10 минут, ответы одинаковы для «нет логина» и «неверный пароль»; `no-store`, CSP на странице входа; тело до 8 КБ; CORS только для адресов возврата сайта и `CORE_CORS_ORIGINS`. Лимитер в памяти процесса — при нескольких экземплярах API вынести в общее хранилище.
+Authorization Code + PKCE (S256 обязателен), `state`; форма входа подписана (HMAC); код одноразовый (условный UPDATE), 2 минуты; токены 256 бит, в БД только sha256 с перцем; access 15 минут; refresh 60 дней, **вращается**, повтор старого отзывает сессию; перебор: 5 неудач на логин+IP и 30 на IP за 10 минут, ответы одинаковы для «нет логина» и «неверный пароль»; `no-store`, CSP на странице входа; тело до 8 КБ; CORS только для адресов возврата сайта и `CORE_CORS_ORIGINS`. 2FA: TOTP по RFC 6238 (SHA1, 6 цифр, 30 с, окно ±1 шаг), принятый шаг запоминается (`last_step`, условный UPDATE) — один код дважды не пройдёт; секрет 20 байт в БД зашифрован AES-256-GCM ключом из `CORE_SECRET` (**смена `CORE_SECRET` ломает включённую 2FA** — её придётся сбросить, см. конец `sql/003_mfa.sql`); резервные коды — 10 одноразовых, в БД только хеши с перцем. Лимитер в памяти процесса — при нескольких экземплярах API вынести в общее хранилище.
 
 ## Не проверено
 Работа с живой MariaDB: все запросы проверены только парсером синтаксиса MariaDB и тестами на памяти (песочница не даёт запустить БД). Перед боем: `npm run migrate`, `npm run doctor`, вход тестовым аккаунтом. Также: боевой адрес и TLS, `Core/CoreRewards.cs` в игре (не компилировался).

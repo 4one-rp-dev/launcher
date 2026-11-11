@@ -80,7 +80,7 @@ function createMock(opts) {
     ],
   };
   const profile = () => Object.assign({}, PROFILE, roleOf(S.alvl), { balance4c: S.balance });
-  const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending, guest: !S.authed && !!S.guest });
+  const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending, guest: !S.authed && !!S.guest, mfa: !!S.mfaStep });
 
   // ---- настройки
   const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true, afterStart: 'minimize', gamePriority: 'normal', startHidden: true, rememberRoute: true, lastRoute: 'home', notifyNews: true, notifyServer: true, dlLimit: '0' };
@@ -150,6 +150,20 @@ function createMock(opts) {
     },
     async cancel() { S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
     async logout() { S.authed = false; S.guest = false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
+    /** Демо: любой логин и пароль от 4 знаков; логин с «2fa» спросит код (верный — 123456 или резервный DEMO-CODE). */
+    async passwordLogin(login, password) {
+      await delay(500);
+      if (String(password).length < 4) return fail('invalid_credentials');
+      if (/2fa/i.test(login) || S.mfaOn) { S.mfaStep = true; bus.emit('auth:changed', authState()); return ok(authState()); }
+      S.authed = true; S.guest = false; S.offline = false; bus.emit('auth:changed', authState()); return ok(authState());
+    },
+    async submitMfa(code) {
+      await delay(400);
+      if (!S.mfaStep) return fail('mfa_expired');
+      if (code !== '123456' && code.toUpperCase().replace('-', '') !== 'DEMOCODE') return fail('invalid_mfa_code');
+      S.mfaStep = false; S.authed = true; S.guest = false; bus.emit('auth:changed', authState()); return ok(authState());
+    },
+    async cancelMfa() { S.mfaStep = false; bus.emit('auth:changed', authState()); return ok(authState()); },
     async guest(on) { S.guest = on !== false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
   };
   const data = {
@@ -180,7 +194,17 @@ function createMock(opts) {
     async history() { return ok(S.history.slice()); },
   };
   const account = {
-    async security() { await delay(200); return ok({ emailVerified: true, twoFactor: false, passwordSet: true, links: [
+    async mfaStatus() { await delay(150); return ok({ enabled: !!S.mfaOn, pending: !!S.mfaPending, backupLeft: S.mfaOn ? 10 : 0, enabledAt: S.mfaOn ? new Date().toISOString() : null }); },
+    async mfaSetup() {
+      await delay(300); if (S.mfaOn) return fail('mfa_already_enabled'); S.mfaPending = true;
+      const otpauth = 'otpauth://totp/4ONE%20RP:dante?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=4ONE%20RP&algorithm=SHA1&digits=6&period=30';
+      let qr = ''; try { qr = await require('qrcode').toDataURL(otpauth, { margin: 1, width: 240 }); } catch (_) { /* в браузерном предпросмотре qrcode нет */ }
+      return ok({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', otpauth, qr });
+    },
+    async mfaEnable(code) { await delay(300); if (!S.mfaPending) return fail('mfa_not_pending'); if (code !== '123456') return fail('invalid_mfa_code'); S.mfaOn = true; S.mfaPending = false; return ok({ enabled: true, backupCodes: ['K7QM-4XPA', 'R2DW-9HTZ', 'BN5C-7YUE', 'P3LS-8GVK', 'W6TF-2QMN', 'H9XJ-5RAD', 'C4EV-6KPW', 'Y8NB-3STL', 'G5ZH-7MQR', 'U2AK-9DFX'] }); },
+    async mfaDisable(code) { await delay(300); if (!S.mfaOn) return fail('mfa_not_enabled'); if (code !== '123456') return fail('invalid_mfa_code'); S.mfaOn = false; return ok({ enabled: false }); },
+    async mfaBackup(code) { await delay(300); if (code !== '123456') return fail('invalid_mfa_code'); return ok({ backupCodes: ['M3QX-7PKA', 'T8RW-2HDZ', 'BV5C-9YNE', 'Q4LS-6GXK', 'W7TF-3ZMN', 'J9XA-5RCD', 'C2EV-8KPU', 'Y6NB-4STH', 'G3ZH-7WQR', 'U5AK-2DFL'] }); },
+    async security() { await delay(200); return ok({ emailVerified: true, twoFactor: !!S.mfaOn, passwordSet: true, links: [
       { provider: 'discord', linked: true, label: 'dante#2026' }, { provider: 'email', linked: true, label: PROFILE.email },
       { provider: 'google', linked: false, label: '' }, { provider: 'telegram', linked: false, label: '' }, { provider: 'steam', linked: false, label: '' }, { provider: 'vk', linked: false, label: '' }] }); },
     async sessions() { await delay(250); return ok(S.sessions.map((x) => Object.assign({}, x))); },
@@ -214,13 +238,21 @@ function createMock(opts) {
     async copyDiagnostics() { return ok({ text: '4ONE Launcher 1.0.0 (демо)' }); },
     async cacheInfo() { return ok({ dir: 'C:\\Users\\Player\\AppData\\Local\\4ONE Launcher\\client-kit', bytes: 382 * MB }); },
     async clearCache() { return ok({ bytes: 0 }); },
+    async copyText() { return ok(); },
   };
   const win = { minimize() {}, toggleMaximize() { return false; }, close() {} };
   const updater = {
     async check() { return ok({ state: 'none' }); }, async download() { return ok(); }, async install() { return ok(); },
   };
 
-  return { bus, services: { app, win, auth, data, game, codes, account, settings: settingsSvc, updater, log: { error() {}, warn() {}, info() {} } }, PROFILE, SERVERS, NEWS };
+  const PREFS = { cfg: { drawDistance: 120, fpsLimit: -1, cefGpu: true, micDevice: 0, outDevice: 0, micVolume: 100, voiceVolume: 100, netgraph: false, voiceKey: 0, radioKey: 0, chatKey: 0, consoleKey: 0, voiceMode: 'key', voiceThreshold: 35, streamerMode: false, discord: true, voiceEnabled: true, voiceAutoGain: true, voiceNoise: true, accent: '', alerts: '', consoleSkin: '', keepDays: null, exists: true },
+    gta: { exists: true, windowMode: 'borderless', vsync: false, resolution: '1920×1080' }, devices: { inputs: ['Микрофон (Realtek High Definition Audio)', 'Headset Microphone (USB)'], outputs: ['Динамики (Realtek High Definition Audio)', 'Наушники (USB Headset)'] }, running: false, file: 'C:\\Users\\Player\\AppData\\Local\\FloVMP\\player.cfg' };
+  const prefs = {
+    async get() { return ok(JSON.parse(JSON.stringify(PREFS))); },
+    async set(p) { for (const [k, v] of Object.entries(p)) { if (k === 'windowMode' || k === 'vsync') PREFS.gta[k] = v; else PREFS.cfg[k] = v; } return ok(JSON.parse(JSON.stringify(PREFS))); },
+    async reset(g) { const d = { keys: { voiceKey: 0, radioKey: 0, chatKey: 0, consoleKey: 0 }, look: { accent: '', alerts: '', consoleSkin: '' } }[g] || {}; Object.assign(PREFS.cfg, d); return ok(JSON.parse(JSON.stringify(PREFS))); },
+  };
+  return { bus, services: { app, win, auth, data, game, codes, account, settings: settingsSvc, updater, prefs, log: { error() {}, warn() {}, info() {} } }, PROFILE, SERVERS, NEWS };
 }
 
 module.exports = { createMock, createBus };

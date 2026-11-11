@@ -47,9 +47,10 @@ function createAuth(deps) {
   const st = { authed: false, profile: null, offline: false, reason: '', pending: false, guest: !!guestStore.get() };
   let tokens = null;     // { access, refresh, expiresAt }
   let pending = null;    // { state, verifier, timer }
+  let mfa = null;        // { token, at } — первый шаг входа пройден, ждём код 2FA (токен только в памяти)
   let refreshing = null; // одно общее обновление токена: повтор refresh сервер считает кражей и отзывает сессию
 
-  const publicState = () => ({ authed: st.authed, profile: st.profile, offline: st.offline, reason: st.reason, pending: st.pending, guest: !st.authed && st.guest });
+  const publicState = () => ({ authed: st.authed, profile: st.profile, offline: st.offline, reason: st.reason, pending: st.pending, guest: !st.authed && st.guest, mfa: !!mfa });
   const setGuest = (v) => { st.guest = !!v; guestStore.set(!!v); };
   const emit = () => bus.emit('auth:changed', publicState());
   const persist = () => { if (tokens) vault.save({ ...tokens, profile: st.profile, at: now() }); };
@@ -82,6 +83,18 @@ function createAuth(deps) {
     const r = await refreshing;
     if (!r.ok) return r;
     return tokens ? ok(tokens.access) : fail('invalid_session');
+  }
+
+  /** Токены получены (любым способом входа): профиль, роль, сохранение сессии. */
+  async function complete(t, how) {
+    tokens = t;
+    const me = await oauth.me(tokens.access);
+    if (!me.ok) { tokens = null; return me; }
+    st.authed = true; st.offline = false; st.reason = ''; st.profile = backend.fromCore(me.data); mfa = null;
+    setGuest(false); persist();
+    log.info('auth', `вход ${how}: ${st.profile.username} (${st.profile.role})`);
+    emit();
+    return ok(publicState());
   }
 
   async function loadProfile() {
@@ -149,6 +162,31 @@ function createAuth(deps) {
 
     async cancel() { clearPending(); emit(); return ok(publicState()); },
 
+    /** Вход по логину и паролю. Ответ: вошли, или нужен код двухфакторной защиты (state.mfa). */
+    async passwordLogin(login, password) {
+      clearPending(); mfa = null;
+      const r = await oauth.passwordLogin(login, password, deviceName);
+      if (!r.ok) { log.info('auth', `вход по паролю отклонён: ${r.code}`); return r; }
+      if (r.data.mfa) {
+        mfa = { token: r.data.token, at: now() };
+        log.info('auth', 'вход по паролю: нужен код 2FA');
+        emit();
+        return ok(publicState());
+      }
+      return complete(r.data, 'по паролю');
+    },
+    async submitMfa(code) {
+      if (!mfa) return fail('mfa_expired');
+      const r = await oauth.mfaLogin(mfa.token, code);
+      if (!r.ok) {
+        if (r.code === 'mfa_expired' || r.code === 'rate_limited') { mfa = null; emit(); }
+        return r;
+      }
+      mfa = null;
+      return complete(r.data, 'по паролю и коду 2FA');
+    },
+    async cancelMfa() { mfa = null; emit(); return ok(publicState()); },
+
     /** Возврат из браузера. Чужие и устаревшие ссылки отбрасываются по state. */
     async handleCallback(link) {
       if (!pending || !link || !sameState(link.state, pending.state)) {
@@ -158,14 +196,9 @@ function createAuth(deps) {
       const { verifier } = pending; clearPending(); emit();
       const t = await oauth.exchangeCode(link.code, verifier);
       if (!t.ok) { toast('err', t.message); return t; }
-      tokens = t.data;
-      const me = await oauth.me(tokens.access);
-      if (!me.ok) { tokens = null; toast('err', me.message); return me; }
-      st.authed = true; st.offline = false; st.reason = ''; st.profile = backend.fromCore(me.data);
-      setGuest(false); persist();
-      log.info('auth', `вход через сайт: ${st.profile.username} (${st.profile.role})`);
-      emit();
-      return ok(publicState());
+      const r = await complete(t.data, 'через сайт');
+      if (!r.ok) toast('err', r.message);
+      return r;
     },
 
     /** «Играть без входа»: главная и запуск игры доступны, коды и аккаунт — после входа. */

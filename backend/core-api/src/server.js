@@ -3,7 +3,7 @@ const http = require('http');
 const { URL } = require('url');
 const { load } = require('./config');
 const { createOAuth } = require('./oauth');
-const { loginPage, errorPage, doneHtml } = require('./page');
+const { loginPage, mfaPage, errorPage, doneHtml } = require('./page');
 const { createMemoryStore, createMysqlStore } = require('./store');
 const roles = require('./roles');
 const crypto = require('crypto');
@@ -31,8 +31,15 @@ function parseBody(req, raw) {
 function createApp({ store, config, now }) {
   const oauth = createOAuth({ store, config, now });
   const svc = createServices({ store, now });
-  const STATUS = { promo_not_found: 404, promo_expired: 410, promo_used: 409, promo_limit: 409, busy: 429, bad_request: 400, not_found: 404 };
-  const MESSAGES = { promo_not_found: 'Такого кода не существует.', promo_expired: 'Срок действия кода истёк.', promo_used: 'Вы уже активировали этот код.', promo_limit: 'Лимит активаций кода исчерпан.', busy: 'Слишком много запросов.', bad_request: 'Некорректный запрос.', not_found: 'Не найдено.' };
+  const STATUS = {
+    promo_not_found: 404, promo_expired: 410, promo_used: 409, promo_limit: 409, busy: 429, bad_request: 400, not_found: 404,
+    invalid_mfa_code: 401, rate_limited: 429, mfa_already_enabled: 409, mfa_not_pending: 409, mfa_not_enabled: 409,
+  };
+  const MESSAGES = {
+    promo_not_found: 'Такого кода не существует.', promo_expired: 'Срок действия кода истёк.', promo_used: 'Вы уже активировали этот код.', promo_limit: 'Лимит активаций кода исчерпан.', busy: 'Слишком много запросов.', bad_request: 'Некорректный запрос.', not_found: 'Не найдено.',
+    invalid_mfa_code: 'Неверный код.', rate_limited: 'Слишком много попыток. Подождите несколько минут.',
+    mfa_already_enabled: 'Двухфакторная защита уже включена.', mfa_not_pending: 'Сначала начните настройку заново.', mfa_not_enabled: 'Двухфакторная защита не включена.',
+  };
   const result = (res, r) => (r.error ? apiError(res, STATUS[r.error] || 400, r.error, MESSAGES[r.error] || 'Ошибка.') : send(res, 200, { data: r.data }));
   const internalOk = (req) => {
     const want = Buffer.from(config.internalToken || ''); const got = Buffer.from(String(req.headers['x-internal-token'] || ''));
@@ -97,10 +104,22 @@ function createApp({ store, config, now }) {
     if (path === '/oauth/authorize' && method === 'POST') {
       const body = parseBody(req, await readBody(req));
       if (!body) return html(res, 400, errorPage('Некорректный запрос.'));
-      const r = await oauth.submitLogin({ tx: body.tx, login: body.login, password: body.password, ip: ipOf(req) });
-      if (!r.ok) {
-        if (r.error === 'tx_expired') return html(res, 400, errorPage('Страница входа устарела. Вернитесь в лаунчер и нажмите «Войти» ещё раз.'));
-        return html(res, r.error === 'rate_limited' ? 429 : 401, loginPage({ clientName: '4ONE', tx: body.tx, error: r.error, login: body.login }));
+      let r;
+      if (body.mtx !== undefined) {
+        // второй шаг: код 2FA
+        r = await oauth.submitMfa({ mtx: body.mtx, code: body.code, ip: ipOf(req) });
+        if (!r.ok) {
+          if (r.error === 'mfa_expired') return html(res, 400, errorPage('Время на ввод кода вышло. Вернитесь в лаунчер или на сайт и войдите заново.'));
+          return html(res, r.error === 'rate_limited' ? 429 : 401, mfaPage({ clientName: r.clientName, mtx: r.mtx, error: r.error }), r.formOrigin);
+        }
+      } else {
+        r = await oauth.submitLogin({ tx: body.tx, login: body.login, password: body.password, ip: ipOf(req) });
+        if (!r.ok) {
+          if (r.error === 'tx_expired') return html(res, 400, errorPage('Страница входа устарела. Вернитесь в лаунчер и нажмите «Войти» ещё раз.'));
+          return html(res, r.error === 'rate_limited' ? 429 : 401, loginPage({ clientName: r.clientName || '4ONE', tx: body.tx, error: r.error, login: body.login }), r.formOrigin);
+        }
+        // пароль верный, но включена 2FA: код авторизации выдаётся только после второго шага
+        if (r.mfa) return html(res, 200, mfaPage({ clientName: r.clientName, mtx: r.mtx }), r.formOrigin);
       }
       // кастомная схема: 200 со ссылкой, а не 302 (браузеры не всегда отдают такой редирект приложению)
       if (/^https?:/.test(r.redirect)) return send(res, 302, '', 'text/plain', { Location: r.redirect });
@@ -118,6 +137,14 @@ function createApp({ store, config, now }) {
       const body = parseBody(req, await readBody(req));
       if (!body) return apiError(res, 400, 'invalid_request', 'Некорректное тело запроса.');
       const r = await oauth.revoke(body);
+      return send(res, r.status, r.body);
+    }
+
+    // ---- прямой вход лаунчера по логину и паролю (+ второй шаг 2FA)
+    if ((path === '/v1/auth/login' || path === '/v1/auth/mfa') && method === 'POST') {
+      const body = parseBody(req, await readBody(req));
+      if (!body) return apiError(res, 400, 'invalid_request', 'Некорректное тело запроса.');
+      const r = path === '/v1/auth/login' ? await oauth.directLogin(body, { ip: ipOf(req) }) : await oauth.directMfa(body, { ip: ipOf(req) });
       return send(res, r.status, r.body);
     }
 
@@ -156,6 +183,14 @@ function createApp({ store, config, now }) {
         return result(res, await svc.revokeSession(a.account, a.session, body.id));
       }
       if (method === 'POST' && op === 'sessions/revoke-others') return result(res, await svc.revokeOthers(a.account, a.session));
+      // двухфакторная защита
+      if (method === 'GET' && op === '2fa') return send(res, 200, { data: await oauth.mfa.status(a.account.login) });
+      if (method === 'POST' && op === '2fa/setup') return result(res, await oauth.mfa.setup(a.account));
+      if (method === 'POST' && ['2fa/enable', '2fa/disable', '2fa/backup'].includes(op)) {
+        const body = parseBody(req, await readBody(req)); if (!body) return apiError(res, 400, 'bad_request', MESSAGES.bad_request);
+        const fn = { '2fa/enable': 'enable', '2fa/disable': 'disable', '2fa/backup': 'regenerate' }[op];
+        return result(res, await oauth.mfa[fn](a.account, body.code));
+      }
       return apiError(res, 404, 'not_found', MESSAGES.not_found);
     }
 

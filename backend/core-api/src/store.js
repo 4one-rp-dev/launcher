@@ -3,7 +3,7 @@
  * Хранилище. Два варианта с одним интерфейсом:
  *  - memory: для разработки и тестов (данные из seed);
  *  - mysql: игровая MariaDB, одна база. Читаем accounts (в т.ч. alvl — уровень администрации), characters, banned;
- *    пишем только в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql).
+ *    пишем только в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql, 003_mfa.sql).
  * Время — Date (UTC), хеши токенов — hex sha256.
  */
 
@@ -26,6 +26,7 @@ function normAccount(a) {
 function createMemoryStore(seed = {}) {
   const accounts = (seed.accounts || []).map((a) => ({ ...normAccount(a), characters: a.characters || [], banned: !!a.banned, lastAt: a.lastAt || null }));
   const codes = new Map(); const sessions = new Map(); const tokens = new Map();
+  const mfa = new Map(); const backup = new Map();
   const find = (id) => accounts.find((a) => a.login === id) || accounts.find((a) => a.email && a.email.toLowerCase() === String(id).toLowerCase()) || null;
 
   return {
@@ -72,7 +73,35 @@ function createMemoryStore(seed = {}) {
       for (const [h, c] of codes) if (c.expiresAt <= now) codes.delete(h);
       for (const [h, t] of tokens) if (t.expiresAt <= now) tokens.delete(h);
     },
-    _dump: () => ({ accounts, codes, sessions, tokens }),
+
+    // ---- 2FA (sql/003_mfa.sql)
+    async getMfa(login) { const r = mfa.get(login); return r ? { ...r } : null; },
+    async setMfaPending(login, pendingEnc, now) {
+      const r = mfa.get(login) || { login, secretEnc: null, enabledAt: null, lastStep: 0 };
+      if (r.enabledAt) return; // включённую 2FA setup не трогает
+      mfa.set(login, { ...r, pendingEnc, pendingAt: now, updatedAt: now });
+    },
+    async enableMfa(login, { pendingEnc, lastStep, now }) {
+      const r = mfa.get(login);
+      if (!r || r.enabledAt || r.pendingEnc !== pendingEnc) return false;
+      mfa.set(login, { ...r, secretEnc: pendingEnc, pendingEnc: null, pendingAt: null, enabledAt: now, lastStep, updatedAt: now });
+      return true;
+    },
+    async advanceMfaStep(login, step) {
+      const r = mfa.get(login);
+      if (!r || !r.enabledAt || r.lastStep >= step) return false;
+      r.lastStep = step; return true;
+    },
+    async disableMfa(login) { mfa.delete(login); backup.delete(login); },
+    async replaceBackupCodes(login, hashes, now) { backup.set(login, hashes.map((hash) => ({ hash, createdAt: now, usedAt: null }))); },
+    async useBackupCode(login, hash, now) {
+      const c = (backup.get(login) || []).find((x) => x.hash === hash && !x.usedAt);
+      if (!c) return false;
+      c.usedAt = now; return true;
+    },
+    async countBackupCodes(login) { return (backup.get(login) || []).filter((x) => !x.usedAt).length; },
+
+    _dump: () => ({ accounts, codes, sessions, tokens, mfa, backup }),
   };
 }
 
@@ -158,6 +187,47 @@ function createMysqlStore(pool, cfg) {
       return rows[0] ? { sessionId: rows[0].session_id, login: rows[0].login, expiresAt: new Date(rows[0].expires_at) } : null;
     },
     async deleteTokensOfSession(id) { await q('DELETE FROM core_oauth_tokens WHERE session_id = ?', [id]); },
+    // ---- 2FA (sql/003_mfa.sql)
+    async getMfa(login) {
+      const rows = await q('SELECT login, secret_enc, pending_enc, pending_at, enabled_at, last_step FROM core_mfa WHERE login = ?', [login]);
+      const r = rows[0];
+      return r ? {
+        login: r.login, secretEnc: r.secret_enc, pendingEnc: r.pending_enc, pendingAt: r.pending_at ? new Date(r.pending_at) : null,
+        enabledAt: r.enabled_at ? new Date(r.enabled_at) : null, lastStep: Number(r.last_step) || 0,
+      } : null;
+    },
+    async setMfaPending(login, pendingEnc, now) {
+      // включённую 2FA не трогаем: ожидающий секрет меняется, только пока enabled_at пуст
+      await q('INSERT INTO core_mfa (login, pending_enc, pending_at, updated_at) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE pending_enc = IF(enabled_at IS NULL, VALUES(pending_enc), pending_enc), pending_at = IF(enabled_at IS NULL, VALUES(pending_at), pending_at), updated_at = VALUES(updated_at)',
+        [login, pendingEnc, now, now]);
+    },
+    async enableMfa(login, { pendingEnc, lastStep, now }) {
+      const res = await q('UPDATE core_mfa SET secret_enc = pending_enc, pending_enc = NULL, pending_at = NULL, enabled_at = ?, last_step = ?, updated_at = ? WHERE login = ? AND enabled_at IS NULL AND pending_enc = ?',
+        [now, lastStep, now, login, pendingEnc]);
+      return res.affectedRows > 0;
+    },
+    async advanceMfaStep(login, step) {
+      // условный UPDATE: из двух одновременных запросов с одним кодом пройдёт один
+      const res = await q('UPDATE core_mfa SET last_step = ? WHERE login = ? AND enabled_at IS NOT NULL AND last_step < ?', [step, login, step]);
+      return res.affectedRows > 0;
+    },
+    async disableMfa(login) {
+      await q('DELETE FROM core_mfa_backup WHERE login = ?', [login]);
+      await q('DELETE FROM core_mfa WHERE login = ?', [login]);
+    },
+    async replaceBackupCodes(login, hashes, now) {
+      await q('DELETE FROM core_mfa_backup WHERE login = ?', [login]);
+      if (hashes.length) await q(`INSERT INTO core_mfa_backup (login, code_hash, created_at) VALUES ${hashes.map(() => '(?,?,?)').join(',')}`, hashes.flatMap((x) => [login, x, now]));
+    },
+    async useBackupCode(login, hash, now) {
+      const res = await q('UPDATE core_mfa_backup SET used_at = ? WHERE login = ? AND code_hash = ? AND used_at IS NULL', [now, login, hash]);
+      return res.affectedRows > 0;
+    },
+    async countBackupCodes(login) {
+      const rows = await q('SELECT COUNT(*) AS n FROM core_mfa_backup WHERE login = ? AND used_at IS NULL', [login]);
+      return Number(rows[0] && rows[0].n) || 0;
+    },
+
     async purgeExpired(now) {
       await q('DELETE FROM core_oauth_codes WHERE expires_at <= ?', [now]);
       await q('DELETE FROM core_oauth_tokens WHERE expires_at <= ?', [now]);

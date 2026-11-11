@@ -4,15 +4,17 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Sandboxed-preload не может require() соседние файлы — списки продублированы.
 // Синхронность с core/contract.js проверяет test/preload.test.js.
 const CHANNELS = [
-  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache',
+  'app:info', 'app:openExternal', 'app:openPath', 'app:copyDiagnostics', 'app:cacheInfo', 'app:clearCache', 'app:copyText',
   'win:minimize', 'win:toggleMaximize', 'win:close',
-  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest',
+  'auth:status', 'auth:login', 'auth:cancel', 'auth:logout', 'auth:guest', 'auth:password', 'auth:mfa', 'auth:mfaCancel',
   'data:bootstrap',
   'servers:select',
   'game:state', 'game:detect', 'game:browse', 'game:setPath',
   'game:install', 'game:verify', 'game:play', 'game:cancel', 'game:uninstall',
+  'prefs:get', 'prefs:set', 'prefs:reset',
   'codes:redeem', 'codes:history',
   'account:security', 'account:sessions', 'account:revokeSession', 'account:revokeOthers', 'account:history', 'account:wallet', 'account:characters',
+  'account:mfaStatus', 'account:mfaSetup', 'account:mfaEnable', 'account:mfaDisable', 'account:mfaBackup',
   'settings:get', 'settings:set', 'settings:reset',
   'update:check', 'update:download', 'update:install',
 ];

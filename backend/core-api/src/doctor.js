@@ -21,7 +21,7 @@ async function main() {
     const [tables] = await conn.query('SHOW TABLES');
     const have = new Set(tables.map((r) => Object.values(r)[0]));
     for (const t of ['accounts', 'characters', 'banned']) line(have.has(t), `таблица игры ${t}`);
-    for (const t of ['core_oauth_codes', 'core_oauth_sessions', 'core_oauth_tokens', 'core_servers', 'core_news', 'core_settings', 'core_promos', 'core_promo_redeems', 'core_wallet_tx', 'core_login_events']) line(have.has(t), `таблица ${t}${have.has(t) ? '' : ' — выполните npm run migrate'}`);
+    for (const t of ['core_oauth_codes', 'core_oauth_sessions', 'core_oauth_tokens', 'core_servers', 'core_news', 'core_settings', 'core_promos', 'core_promo_redeems', 'core_wallet_tx', 'core_login_events', 'core_mfa', 'core_mfa_backup']) line(have.has(t), `таблица ${t}${have.has(t) ? '' : ' — выполните npm run migrate'}`);
     if (have.has('accounts')) {
       const [col] = await conn.query("SHOW COLUMNS FROM accounts LIKE 'alvl'");
       line(col.length > 0, 'колонка accounts.alvl (уровень администрации)' + (col.length ? '' : ' — нет: npm run migrate или gamemod/database/migrations/009'));

@@ -1,6 +1,6 @@
 import { call } from '../api.js';
 import { S } from '../state.js';
-import { $, esc, ic, num, c4, hours, ago, dateShort, confirmBox, delegate, empty } from '../ui.js';
+import { $, esc, ic, num, c4, hours, ago, dateShort, confirmBox, delegate, empty, toast } from '../ui.js';
 import { check, openExt } from '../actions.js';
 import { tabs } from '../tabs.js';
 import { roleLabel } from '../role.js';
@@ -25,7 +25,7 @@ export function mount(root, ctx) {
   ];
   const cache = {}; const state = {}; // cache[k] — данные вкладки, state[k] — 'idle|load|ok|err'
   const LOADERS = {
-    security: () => call('account:security'), devices: () => call('account:sessions'), history: () => call('account:history'),
+    security: async () => { const [a, b] = await Promise.all([call('account:security'), call('account:mfaStatus')]); return a.ok ? { ok: true, data: Object.assign({}, a.data, { mfa: b.ok ? b.data : null }) } : a; }, devices: () => call('account:sessions'), history: () => call('account:history'),
     wallet: () => call('account:wallet'), chars: () => call('account:characters'),
   };
   let view = null; // onShow срабатывает уже внутри tabs(), поэтому view может быть ещё пуст
@@ -80,8 +80,8 @@ export function mount(root, ctx) {
       <div class="gp flat"><div class="gh"><div class="ico">${ic('shield')}</div><h2>${t('Защита аккаунта')}</h2></div>
         ${row('mail', t('Почта'), t('Нужна для восстановления доступа'), d.emailVerified, t('Подтверждена'), t('Не подтверждена'))}
         ${row('lock', t('Пароль'), t('Меняется на сайте'), d.passwordSet, t('Задан'), t('Не задан'))}
-        ${row('fingerprint', t('Двухфакторная защита'), t('Код из приложения при входе на сайт'), d.twoFactor, t('Включена'), t('Выключена'))}
       </div>
+      ${mfaBox(d)}
       <div class="gp flat"><div class="gh"><div class="ico">${ic('link')}</div><h2>${t('Привязанные способы входа')}</h2></div>
         ${links.map((l) => `<div class="srow"><div class="ico-s">${PROV_ICON[l.provider] ? ic(PROV_ICON[l.provider]) : `<span class="txtb">${esc((METHOD()[l.provider] || l.provider).slice(0, 2).toUpperCase())}</span>`}</div>
           <div class="st"><b>${esc(METHOD()[l.provider] || l.provider)}</b><small>${l.linked ? esc(l.label || t('Привязан')) : t('Не привязан')}</small></div>
@@ -133,6 +133,56 @@ export function mount(root, ctx) {
     },
   };
 
+  // ---- двухфакторная защита: мастер прямо во вкладке (в модальном окне введённый код терялся бы при закрытии)
+  // mfa.step: idle | setup (QR и проверочный код) | codes (показать резервные коды один раз) | disable | regen
+  const mfa = { step: 'idle', setup: null, codes: [], err: '' };
+  const codeInput = (id, backup) => `<input class="inp code sm" id="${id}" inputmode="${backup ? 'text' : 'numeric'}" maxlength="${backup ? 9 : 6}" placeholder="${backup ? '000000 / XXXX-XXXX' : '000000'}" autocomplete="one-time-code" spellcheck="false" aria-label="${t('Код подтверждения')}">`;
+  function mfaBox(d) {
+    const st = d.mfa || { enabled: !!d.twoFactor, backupLeft: 0 };
+    const on = !!st.enabled;
+    const err = mfa.err ? `<p class="lg-err" role="alert">${esc(mfa.err)}</p>` : '';
+    let body = '';
+    if (mfa.step === 'setup' && mfa.setup) {
+      body = `<div class="mfa-setup">
+        <div class="mfa-qr">${mfa.setup.qr ? `<img src="${esc(mfa.setup.qr)}" alt="${t('QR-код для приложения')}" width="200" height="200" draggable="false">` : ''}</div>
+        <ol class="mfa-steps">
+          <li>${t('Установите приложение-аутентификатор: Google Authenticator, Яндекс Ключ, Microsoft Authenticator, Aegis или любое с поддержкой TOTP.')}</li>
+          <li>${t('Отсканируйте QR-код. Не получается — введите ключ вручную:')}<code class="mfa-key" data-act="mfa-key" data-copy="${esc(mfa.setup.secret)}" title="${t('Нажмите, чтобы скопировать')}">${esc(String(mfa.setup.secret).replace(/(.{4})/g, '$1 ').trim())}</code></li>
+          <li>${t('Введите 6-значный код из приложения, чтобы подтвердить.')}</li>
+        </ol>
+      </div>
+      <div class="mfa-act">${codeInput('mfa-in')}<button class="bt sm" data-act="mfa-enable">${t('Включить')}</button><button class="bt g sm" data-act="mfa-cancel">${t('Отмена')}</button></div>${err}`;
+    } else if (mfa.step === 'codes') {
+      body = `<p class="mfa-note">${t('Сохраните резервные коды в надёжном месте. Каждый работает один раз — если потеряете телефон, войдёте с их помощью. Больше они показаны не будут.')}</p>
+      <div class="mfa-codes" data-copy="${esc(mfa.codes.join('\n'))}">${mfa.codes.map((c) => `<code>${esc(c)}</code>`).join('')}</div>
+      <div class="mfa-act"><button class="bt g sm" data-act="mfa-copy">${ic('copy')}${t('Скопировать')}</button><button class="bt sm" data-act="mfa-done">${t('Я сохранил коды')}</button></div>`;
+    } else if (mfa.step === 'disable' || mfa.step === 'regen') {
+      const dis = mfa.step === 'disable';
+      body = `<p class="mfa-note">${dis ? t('Введите код из приложения или резервный код, чтобы отключить защиту.') : t('Введите код из приложения. Старые резервные коды перестанут работать.')}</p>
+      <div class="mfa-act">${codeInput('mfa-in', dis)}<button class="bt ${dis ? 'dng' : ''} sm" data-act="${dis ? 'mfa-disable' : 'mfa-regen'}">${dis ? t('Отключить') : t('Получить новые коды')}</button><button class="bt g sm" data-act="mfa-cancel">${t('Отмена')}</button></div>${err}`;
+    } else {
+      body = `<div class="srow"><div class="ico-s">${ic('fingerprint')}</div><div class="st"><b>${t('Код из приложения при входе')}</b>
+        <small>${on ? t('При входе в лаунчер и на сайт нужен код из приложения. Резервных кодов осталось: {n}', { n: st.backupLeft != null ? st.backupLeft : '—' }) : t('Даже зная пароль, без телефона в аккаунт не войти. Подключение займёт минуту.')}</small></div>
+        ${on ? `<div class="sact"><button class="bt g sm" data-act="mfa-regen-start">${t('Новые резервные коды')}</button><button class="bt g dng sm" data-act="mfa-disable-start">${t('Отключить')}</button></div>`
+    : `<button class="bt sm" data-act="mfa-setup">${ic('shield')}${t('Включить')}</button>`}</div>${err}`;
+    }
+    return `<div class="gp flat" id="mfa-box"><div class="gh"><div class="ico">${ic('fingerprint')}</div><h2>${t('Двухфакторная защита')}</h2><span class="sp"></span><span class="bdg ${on ? 'ok' : 'warn'}">${on ? t('Включена') : t('Выключена')}</span></div>${body}</div>`;
+  }
+  function mfaPaint(focus) { mfa.err = mfa.err || ''; paint('security'); if (focus) { const i = $('#mfa-in', root); if (i) i.focus(); } }
+  async function mfaRun(fn) {
+    const inp = $('#mfa-in', root); const code = inp ? inp.value.trim() : '';
+    const r = await fn(code);
+    if (!r.ok) { mfa.err = r.message; mfaPaint(true); return null; }
+    mfa.err = ''; return r;
+  }
+  root.addEventListener('input', (e) => {
+    if (e.target.id !== 'mfa-in') return;
+    const i = e.target; const backup = i.maxLength === 9;
+    const v = /^\d/.test(i.value) || !backup ? i.value.replace(/\D/g, '').slice(0, 6) : i.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8).replace(/^(.{4})(?=.)/, '$1-');
+    if (i.value !== v) i.value = v;
+  });
+  root.addEventListener('keydown', (e) => { if (e.target.id === 'mfa-in' && e.key === 'Enter') { const b = $('#mfa-box [data-act="mfa-enable"], #mfa-box [data-act="mfa-disable"], #mfa-box [data-act="mfa-regen"]', root); if (b) b.click(); } });
+
   function paint(k) {
     const p = view.pane(k); if (!p) return;
     let h;
@@ -151,8 +201,26 @@ export function mount(root, ctx) {
     if (a === 'cabinet') openExt('cabinet');
     else if (a === 'donate') openExt('donate');
     else if (a === 'promo') ctx.go('codes');
+    else if (a === 'mfa-setup') {
+      el.classList.add('busy'); const r = await call('account:mfaSetup'); el.classList.remove('busy');
+      if (!check(r)) return; mfa.step = 'setup'; mfa.setup = r.data; mfa.err = ''; mfaPaint(true);
+    } else if (a === 'mfa-enable') {
+      const r = await mfaRun((c) => (c.length === 6 ? call('account:mfaEnable', c) : Promise.resolve({ ok: false, message: t('Введите код полностью.') })));
+      if (!r) return; mfa.step = 'codes'; mfa.codes = r.data.backupCodes || []; mfa.setup = null; state.security = 'idle'; await load('security', true); toast('ok', t('Двухфакторная защита включена'));
+    } else if (a === 'mfa-key') { await call('app:copyText', el.dataset.copy); toast('ok', t('Ключ скопирован')); }
+    else if (a === 'mfa-copy') { const b = $('.mfa-codes', root); if (b) { await call('app:copyText', b.dataset.copy); toast('ok', t('Скопировано в буфер обмена')); } }
+    else if (a === 'mfa-done') { mfa.step = 'idle'; mfa.codes = []; paint('security'); }
+    else if (a === 'mfa-cancel') { mfa.step = 'idle'; mfa.setup = null; mfa.err = ''; paint('security'); }
+    else if (a === 'mfa-disable-start' || a === 'mfa-regen-start') { mfa.step = a === 'mfa-disable-start' ? 'disable' : 'regen'; mfa.err = ''; mfaPaint(true); }
+    else if (a === 'mfa-disable') {
+      const r = await mfaRun((c) => call('account:mfaDisable', c)); if (!r) return;
+      mfa.step = 'idle'; await load('security', true); toast('ok', t('Двухфакторная защита отключена'));
+    } else if (a === 'mfa-regen') {
+      const r = await mfaRun((c) => call('account:mfaBackup', c)); if (!r) return;
+      mfa.step = 'codes'; mfa.codes = r.data.backupCodes || []; await load('security', true);
+    }
     else if (a === 'logout') {
-      if (await confirmBox(t('Выйти из аккаунта?'), t('Чтобы войти снова, понадобится новый код с сайта.'), t('Выйти'), false)) check(await call('auth:logout'));
+      if (await confirmBox(t('Выйти из аккаунта?'), t('Чтобы войти снова, понадобятся логин и пароль.'), t('Выйти'), false)) check(await call('auth:logout'));
     } else if (a === 'revoke') {
       el.classList.add('busy'); if (check(await call('account:revokeSession', el.dataset.id))) { await load('devices', true); } else el.classList.remove('busy');
     } else if (a === 'revoke-others') {
