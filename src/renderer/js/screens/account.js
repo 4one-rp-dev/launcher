@@ -25,7 +25,7 @@ export function mount(root, ctx) {
   ];
   const cache = {}; const state = {}; // cache[k] — данные вкладки, state[k] — 'idle|load|ok|err'
   const LOADERS = {
-    security: async () => { const [a, b] = await Promise.all([call('account:security'), call('account:mfaStatus')]); return a.ok ? { ok: true, data: Object.assign({}, a.data, { mfa: b.ok ? b.data : null }) } : a; }, devices: () => call('account:sessions'), history: () => call('account:history'),
+    security: async () => { const [a, b] = await Promise.all([call('account:security'), call('account:mfaStatus')]); return a.ok ? { ok: true, data: Object.assign({}, a.data, { mfa: b.ok ? b.data : null }) } : a; }, devices: async () => { const [a, b] = await Promise.all([call('account:sessions'), call('account:devices')]); return a.ok ? { ok: true, data: { sessions: a.data, game: b.ok ? b.data : [] } } : a; }, history: () => call('account:history'),
     wallet: () => call('account:wallet'), chars: () => call('account:characters'),
   };
   let view = null; // onShow срабатывает уже внутри tabs(), поэтому view может быть ещё пуст
@@ -81,6 +81,7 @@ export function mount(root, ctx) {
         ${row('mail', t('Почта'), t('Нужна для восстановления доступа'), d.emailVerified, t('Подтверждена'), t('Не подтверждена'))}
         ${row('lock', t('Пароль'), t('Меняется на сайте'), d.passwordSet, t('Задан'), t('Не задан'))}
       </div>
+      ${protBox(d)}
       ${mfaBox(d)}
       <div class="gp flat"><div class="gh"><div class="ico">${ic('link')}</div><h2>${t('Привязанные способы входа')}</h2></div>
         ${links.map((l) => `<div class="srow"><div class="ico-s">${PROV_ICON[l.provider] ? ic(PROV_ICON[l.provider]) : `<span class="txtb">${esc((METHOD()[l.provider] || l.provider).slice(0, 2).toUpperCase())}</span>`}</div>
@@ -89,7 +90,8 @@ export function mount(root, ctx) {
       </div>
       `;
     },
-    devices(list) {
+    devices(d) {
+      const list = d.sessions || []; const game = d.game || [];
       const others = list.filter((x) => !x.current).length;
       return `
       <div class="gp flat"><div class="gh"><div class="ico">${ic('devices')}</div><h2>${t('Активные сессии')}</h2><span class="sp"></span>
@@ -98,13 +100,17 @@ export function mount(root, ctx) {
           <div class="st"><b>${esc(x.device)}${x.current ? ` <span class="bdg ok">${t('Это устройство')}</span>` : ''}</b><small>${esc(x.os)} · ${esc(x.place)} · ${esc(x.ip)} · ${esc(x.current ? t('сейчас') : ago(x.lastAt))}</small></div>
           ${x.current ? '' : `<button class="bt g sm" data-act="revoke" data-id="${esc(x.id)}">${t('Завершить')}</button>`}</div>`).join('')}
       </div>
+      ${game.length ? `<div class="gp flat"><div class="gh"><div class="ico">${ic('gamepad')}</div><h2>${t('Устройства, с которых входили в игру')}</h2></div>
+        ${game.map((x) => `<div class="srow"><div class="ico-s">${ic('device')}</div>
+          <div class="st"><b>${t('Устройство')} ${esc(x.id)}${x.trusted ? '' : ` <span class="bdg warn">${t('Новое')}</span>`}</b><small>${esc(x.ip)} · ${t('входов')}: ${num(x.logins)} · ${t('впервые')}: ${esc(dateShort(x.firstAt))} · ${esc(ago(x.lastAt))}</small></div>
+          <span class="bdg ${x.trusted ? 'ok' : 'warn'}">${x.trusted ? t('Доверенное') : t('Проверяется')}</span></div>`).join('')}</div>` : ''}
       <p class="hint">${t('Если видите незнакомое устройство — завершите сессию и смените пароль на сайте.')}</p>`;
     },
     history(list) {
       if (!list.length) return empty('hist', t('Входов пока нет'), t('Здесь будут записи о входах в аккаунт'));
       return `<div class="gp flat"><div class="gh"><div class="ico">${ic('hist')}</div><h2>${t('История входов')}</h2></div>
         ${list.map((x) => `<div class="srow"><div class="ico-s ${x.ok ? '' : 'bad'}">${ic(x.ok ? 'check-c' : 'x-c')}</div>
-          <div class="st"><b>${esc(x.device)}</b><small>${esc(x.place)} · ${esc(x.ip)} · ${esc(LOGIN_VIA()[x.method] || x.method)}</small></div>
+          <div class="st"><b>${esc(x.device)}${x.newDevice ? ` <span class="bdg warn">${t('Новое устройство')}</span>` : ''}</b><small>${esc(x.place)} · ${esc(x.ip)} · ${esc(LOGIN_VIA()[x.method] || x.method)}</small></div>
           <div class="when"><span class="bdg ${x.ok ? 'ok' : 'no'}">${x.ok ? t('Успешно') : t('Отклонён')}</span><small>${esc(ago(x.at))}</small></div></div>`).join('')}</div>`;
     },
     wallet(d) {
@@ -132,6 +138,39 @@ export function mount(root, ctx) {
         </div></div>`).join('')}</div>`;
     },
   };
+
+  // ---- защита от кражи имущества: вход в игру с нового устройства блокирует продажу и передачу имущества на 3 суток.
+  // Включить можно сразу; отключить — с паролем (и кодом 2FA, если подключена), отключение сработает через 24 часа.
+  // prot.step: idle | off (ввод пароля и кода)
+  const prot = { step: 'idle', err: '' };
+  const when = (iso) => { try { return new Date(iso).toLocaleString(undefined, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } };
+  function protBox(d) {
+    const p = d.protection || { enabled: true, offAt: null, tradeBanUntil: null };
+    const mfaOn = !!(d.mfa ? d.mfa.enabled : d.twoFactor);
+    const err = prot.err ? `<p class="lg-err" role="alert">${esc(prot.err)}</p>` : '';
+    const off = !p.enabled; const pending = !!p.offAt;
+    let sub = t('Вход в игру с нового устройства блокирует продажу и передачу имущества на 3 суток. Если играете с одного устройства, защиту лучше не отключать.');
+    if (p.tradeBanUntil) sub += ' ' + t('Сейчас заблокировано до {d}.', { d: when(p.tradeBanUntil) });
+    if (pending) sub += ' ' + t('Отключится {d}.', { d: when(p.offAt) });
+    let body;
+    if (prot.step === 'off') {
+      body = `<p class="mfa-note">${t('Чтобы отключить защиту, подтвердите пароль{c}. Отключение сработает через 24 часа — всё это время защита действует, а отменить можно в любой момент.', { c: mfaOn ? t(' и введите код из приложения') : '' })}</p>
+        <div class="mfa-act"><input class="inp sm" id="prot-pw" type="password" autocomplete="current-password" maxlength="200" placeholder="${t('Пароль')}" aria-label="${t('Пароль')}">
+        ${mfaOn ? codeInput('prot-code', true) : ''}<button class="bt dng sm" data-act="prot-off">${t('Отключить через 24 часа')}</button><button class="bt g sm" data-act="prot-cancel">${t('Отмена')}</button></div>${err}`;
+    } else {
+      body = `<div class="srow"><div class="ico-s">${ic('lock')}</div><div class="st"><b>${t('Защита от кражи имущества')}</b><small>${esc(sub)}</small></div>
+        ${off ? `<button class="bt sm" data-act="prot-on">${t('Включить')}</button>`
+          : pending ? `<button class="bt sm" data-act="prot-on">${t('Оставить включённой')}</button>`
+          : `<button class="bt g dng sm" data-act="prot-off-start">${t('Отключить')}</button>`}</div>${err}`;
+    }
+    return `<div class="gp flat" id="prot-box"><div class="gh"><div class="ico">${ic('shield')}</div><h2>${t('Защита имущества')}</h2><span class="sp"></span><span class="bdg ${off ? 'warn' : 'ok'}">${off ? t('Выключена') : t('Включена')}</span></div>${body}</div>`;
+  }
+  async function protRun(enabled) {
+    const pw = $('#prot-pw', root); const cd = $('#prot-code', root);
+    const r = await call('account:setProtection', enabled, pw ? pw.value : undefined, cd && cd.value ? cd.value.trim() : undefined);
+    if (!r.ok) { prot.err = r.message; paint('security'); const i = $('#prot-pw', root); if (i) i.focus(); return false; }
+    prot.err = ''; prot.step = 'idle'; state.security = 'idle'; await load('security', true); return true;
+  }
 
   // ---- двухфакторная защита: мастер прямо во вкладке (в модальном окне введённый код терялся бы при закрытии)
   // mfa.step: idle | setup (QR и проверочный код) | codes (показать резервные коды один раз) | disable | regen
@@ -212,6 +251,13 @@ export function mount(root, ctx) {
     else if (a === 'mfa-done') { mfa.step = 'idle'; mfa.codes = []; paint('security'); }
     else if (a === 'mfa-cancel') { mfa.step = 'idle'; mfa.setup = null; mfa.err = ''; paint('security'); }
     else if (a === 'mfa-disable-start' || a === 'mfa-regen-start') { mfa.step = a === 'mfa-disable-start' ? 'disable' : 'regen'; mfa.err = ''; mfaPaint(true); }
+    else if (a === 'prot-on') { el.classList.add('busy'); const ok = await protRun(true); el.classList.remove('busy'); if (ok) toast('ok', t('Защита имущества включена')); }
+    else if (a === 'prot-off-start') { prot.step = 'off'; prot.err = ''; paint('security'); const i = $('#prot-pw', root); if (i) i.focus(); }
+    else if (a === 'prot-cancel') { prot.step = 'idle'; prot.err = ''; paint('security'); }
+    else if (a === 'prot-off') {
+      const pw = $('#prot-pw', root); if (!pw || !pw.value) { prot.err = t('Введите пароль от аккаунта.'); paint('security'); return; }
+      el.classList.add('busy'); const ok = await protRun(false); el.classList.remove('busy'); if (ok) toast('ok', t('Защита отключится через 24 часа'));
+    }
     else if (a === 'mfa-disable') {
       const r = await mfaRun((c) => call('account:mfaDisable', c)); if (!r) return;
       mfa.step = 'idle'; await load('security', true); toast('ok', t('Двухфакторная защита отключена'));

@@ -14,7 +14,7 @@ const CHANNELS = [
   'prefs:get', 'prefs:set', 'prefs:reset',
   'codes:redeem', 'codes:history',
   'account:security', 'account:sessions', 'account:revokeSession', 'account:revokeOthers', 'account:history', 'account:wallet', 'account:characters',
-  'account:mfaStatus', 'account:mfaSetup', 'account:mfaEnable', 'account:mfaDisable', 'account:mfaBackup',
+  'account:mfaStatus', 'account:mfaSetup', 'account:mfaEnable', 'account:mfaDisable', 'account:mfaBackup', 'account:devices', 'account:setProtection',
   'settings:get', 'settings:set', 'settings:reset',
   'update:check', 'update:download', 'update:install',
 ];

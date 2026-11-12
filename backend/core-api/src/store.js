@@ -3,8 +3,8 @@
  * Хранилище. Два варианта с одним интерфейсом:
  *  - memory: для разработки и тестов (данные из seed);
  *  - mysql: игровая MariaDB, одна база. Читаем accounts (в т.ч. alvl — уровень администрации), characters, banned;
- *    пишем в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql, 003_mfa.sql); в accounts — только INSERT нового
- *    аккаунта при регистрации (sql/004_signup.sql), существующие строки игры не меняем.
+ *    пишем в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql, 003_mfa.sql, 005_security.sql); в accounts — INSERT нового
+ *    аккаунта при регистрации (sql/004_signup.sql) и UPDATE колонки password при сбросе пароля через сайт; остальное в строках игры не меняем.
  * Время — Date (UTC), хеши токенов — hex sha256.
  */
 
@@ -28,6 +28,7 @@ function createMemoryStore(seed = {}) {
   const accounts = (seed.accounts || []).map((a) => ({ ...normAccount(a), characters: a.characters || [], banned: !!a.banned, lastAt: a.lastAt || null }));
   const codes = new Map(); const sessions = new Map(); const tokens = new Map();
   const mfa = new Map(); const backup = new Map();
+  const security = new Map(); const devices = new Map(); const gameLogins = new Map(); const resets = new Map();
   const lc = (s) => String(s || '').toLowerCase();
   const byLogin = (id) => accounts.find((a) => a.login === id) || accounts.find((a) => lc(a.login) === lc(id)) || null;
   const byEmail = (email) => accounts.find((a) => a.email && lc(a.email) === lc(email)) || null;
@@ -120,7 +121,34 @@ function createMemoryStore(seed = {}) {
     },
     async countBackupCodes(login) { return (backup.get(login) || []).filter((x) => !x.usedAt).length; },
 
-    _dump: () => ({ accounts, codes, sessions, tokens, mfa, backup }),
+    // ---- защита аккаунта (sql/005_security.sql; таблицы account_* ведёт игровой мод, здесь — их образ для тестов)
+    async getSecurity(login) { const r = security.get(login); return r ? { ...r } : null; },
+    async setDisableAfter(login, at, now) {
+      security.set(login, { login, tradeBanUntil: null, tradeBanReason: '', forceLogoutAt: null, ...(security.get(login) || {}), disableAfter: at, updatedAt: now, updatedBy: 'core' });
+    },
+    async markForceLogout(login, now) {
+      security.set(login, { login, disableAfter: null, tradeBanUntil: null, tradeBanReason: '', ...(security.get(login) || {}), forceLogoutAt: now, updatedAt: now, updatedBy: 'core' });
+    },
+    async listDevices(login) { return (devices.get(login) || []).map((d) => ({ ...d })); },
+    async untrustDevices(login, now) { for (const d of devices.get(login) || []) { d.trusted = false; d.distrustAt = now; } },
+    async listGameLogins(login, limit) { return (gameLogins.get(login) || []).slice().sort((a, b) => b.at - a.at).slice(0, limit).map((x) => ({ ...x })); },
+
+    // ---- сброс пароля через сайт
+    async putReset(rec) { resets.set(rec.hash, { ...rec, usedAt: null }); },
+    /** Атомарно: токен гасится один раз и только пока не истёк. */
+    async takeReset(hash, now) {
+      const r = resets.get(hash);
+      if (!r || r.usedAt || r.expiresAt <= now) return null;
+      r.usedAt = now; return { ...r };
+    },
+    async peekReset(hash, now) { const r = resets.get(hash); return r && !r.usedAt && r.expiresAt > now ? { ...r } : null; },
+    async deleteResets(login) { for (const [h, r] of resets) if (r.login === login) resets.delete(h); },
+    async setPassword(login, passwordHash) { const a = accounts.find((x) => x.login === login); if (!a) return false; a.passwordHash = passwordHash; return true; },
+    async revokeAllSessions(login, now) {
+      for (const s of [...sessions.values()]) if (s.login === login && !s.revokedAt) await this.revokeSession(s.id, now);
+    },
+
+    _dump: () => ({ accounts, codes, sessions, tokens, mfa, backup, security, devices, gameLogins, resets }),
   };
 }
 
@@ -284,9 +312,57 @@ function createMysqlStore(pool, cfg) {
       return Number(rows[0] && rows[0].n) || 0;
     },
 
+    // ---- защита аккаунта (sql/005_security.sql; таблицы account_* ведёт игровой мод). Время — UTC.
+    async getSecurity(login) {
+      const rows = await q('SELECT disable_after, trade_ban_until, trade_ban_reason, force_logout_at FROM account_security WHERE login = ?', [login]);
+      const r = rows[0]; const d = (v) => (v ? new Date(v) : null);
+      return r ? { login, disableAfter: d(r.disable_after), tradeBanUntil: d(r.trade_ban_until), tradeBanReason: r.trade_ban_reason || '', forceLogoutAt: d(r.force_logout_at) } : null;
+    },
+    async setDisableAfter(login, at, now) {
+      await q("INSERT INTO account_security (login, disable_after, updated_at, updated_by) VALUES (?,?,?,'core') ON DUPLICATE KEY UPDATE disable_after = VALUES(disable_after), updated_at = VALUES(updated_at), updated_by = 'core'", [login, at, now]);
+    },
+    async markForceLogout(login, now) {
+      await q("INSERT INTO account_security (login, force_logout_at, updated_at, updated_by) VALUES (?,?,?,'core') ON DUPLICATE KEY UPDATE force_logout_at = VALUES(force_logout_at), updated_at = VALUES(updated_at), updated_by = 'core'", [login, now, now]);
+    },
+    async listDevices(login) {
+      const rows = await q('SELECT hwid, ip, socialclub, first_seen, last_seen, logins, trusted FROM account_devices WHERE login = ? ORDER BY last_seen DESC LIMIT 20', [login]);
+      return rows.map((r) => ({ hwid: r.hwid, ip: r.ip, socialClub: r.socialclub, firstSeen: new Date(r.first_seen), lastSeen: new Date(r.last_seen), logins: Number(r.logins) || 0, trusted: !!r.trusted }));
+    },
+    // доверие сбрасывается с отметкой времени: срок бана нового устройства отсчитывается от неё (мод, DevicePolicy)
+    async untrustDevices(login, now) { await q('UPDATE account_devices SET trusted = 0, distrust_at = ? WHERE login = ?', [now, login]); },
+    async listGameLogins(login, limit) {
+      const n = Math.max(1, Math.min(200, Number(limit) || 50));
+      const rows = await q(`SELECT at, ip, hwid, ok, reason, new_device FROM account_logins WHERE login = ? ORDER BY at DESC LIMIT ${n}`, [login]);
+      return rows.map((r) => ({ at: new Date(r.at), ip: r.ip, hwid: r.hwid, ok: !!r.ok, reason: r.reason || '', newDevice: !!r.new_device }));
+    },
+
+    // ---- сброс пароля через сайт
+    async putReset(r) { await q('INSERT INTO core_password_resets (token_hash, login, created_at, expires_at) VALUES (?,?,?,?)', [r.hash, r.login, r.createdAt, r.expiresAt]); },
+    async takeReset(hash, now) {
+      // условный UPDATE: токен гасится один раз, гонка двух запросов невозможна
+      const res = await q('UPDATE core_password_resets SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?', [now, hash, now]);
+      if (!res.affectedRows) return null;
+      const rows = await q('SELECT login FROM core_password_resets WHERE token_hash = ?', [hash]);
+      return rows[0] ? { login: rows[0].login } : null;
+    },
+    async peekReset(hash, now) {
+      const rows = await q('SELECT login FROM core_password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?', [hash, now]);
+      return rows[0] ? { login: rows[0].login } : null;
+    },
+    async deleteResets(login) { await q('DELETE FROM core_password_resets WHERE login = ?', [login]); },
+    async setPassword(login, passwordHash) {
+      const res = await q('UPDATE accounts SET `password` = ? WHERE login = ?', [passwordHash, login]);
+      return res.affectedRows > 0;
+    },
+    async revokeAllSessions(login, now) {
+      await q('UPDATE core_oauth_sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE login = ?', [now, login]);
+      await q('DELETE FROM core_oauth_tokens WHERE login = ?', [login]);
+    },
+
     async purgeExpired(now) {
       await q('DELETE FROM core_oauth_codes WHERE expires_at <= ?', [now]);
       await q('DELETE FROM core_oauth_tokens WHERE expires_at <= ?', [now]);
+      await q('DELETE FROM core_password_resets WHERE expires_at <= ?', [new Date(now.getTime() - 24 * 3600 * 1000)]);
     },
   };
 

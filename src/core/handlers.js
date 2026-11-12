@@ -117,6 +117,16 @@ function createHandlers(s) {
     'account:mfaEnable': async (code) => (/^[0-9]{6}$/.test(String(code || '')) ? s.account.mfaEnable(String(code)) : fail('invalid_mfa_code')),
     'account:mfaDisable': async (code) => (MFA_RE.test(String(code || '')) ? s.account.mfaDisable(String(code)) : fail('invalid_mfa_code')),
     'account:mfaBackup': async (code) => (/^[0-9]{6}$/.test(String(code || '')) ? s.account.mfaBackup(String(code)) : fail('invalid_mfa_code')),
+    'account:devices': async () => s.account.devices(),
+    // защита от кражи имущества: включить можно без подтверждения, отключить — с паролем и (если есть) кодом 2FA, действует через 24 часа
+    'account:setProtection': async (enabled, password, code) => {
+      if (typeof enabled !== 'boolean') return fail('bad_request');
+      if (enabled) return s.account.setProtection(true);
+      if (typeof password !== 'string' || !password) return fail('password_required');
+      if (password.length > 200) return fail('invalid_credentials');
+      if (code != null && code !== '' && !MFA_RE.test(String(code))) return fail('invalid_mfa_code');
+      return s.account.setProtection(false, password, code ? String(code) : undefined);
+    },
 
     'settings:get': async () => ok(s.settings.get()),
     'settings:reset': async () => ok(await s.settings.reset()),

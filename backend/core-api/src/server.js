@@ -7,7 +7,9 @@ const { loginPage, mfaPage, errorPage, doneHtml } = require('./page');
 const { createMemoryStore, createMysqlStore } = require('./store');
 const roles = require('./roles');
 const crypto = require('crypto');
-const { createServices } = require('./services');
+const { createServices, maskIp } = require('./services');
+const { createProtect } = require('./protect');
+const { createReset } = require('./reset');
 
 const MAX_BODY = 8 * 1024;
 
@@ -31,16 +33,21 @@ function parseBody(req, raw) {
 function createApp({ store, config, now }) {
   const oauth = createOAuth({ store, config, now });
   const svc = createServices({ store, now });
+  const protect = createProtect({ store, mfa: oauth.mfa, maskIp, now });
+  const reset = createReset({ store, mfa: oauth.mfa, config, now });
   const STATUS = {
     promo_not_found: 404, promo_expired: 410, promo_used: 409, promo_limit: 409, busy: 429, bad_request: 400, not_found: 404,
     invalid_mfa_code: 401, rate_limited: 429, mfa_already_enabled: 409, mfa_not_pending: 409, mfa_not_enabled: 409,
+    invalid_credentials: 401, password_required: 400, mfa_required: 400, invalid_token: 400, invalid_password: 400,
   };
   const MESSAGES = {
     promo_not_found: 'Такого кода не существует.', promo_expired: 'Срок действия кода истёк.', promo_used: 'Вы уже активировали этот код.', promo_limit: 'Лимит активаций кода исчерпан.', busy: 'Слишком много запросов.', bad_request: 'Некорректный запрос.', not_found: 'Не найдено.',
     invalid_mfa_code: 'Неверный код.', rate_limited: 'Слишком много попыток. Подождите несколько минут.',
     mfa_already_enabled: 'Двухфакторная защита уже включена.', mfa_not_pending: 'Сначала начните настройку заново.', mfa_not_enabled: 'Двухфакторная защита не включена.',
+    invalid_credentials: 'Неверный пароль.', password_required: 'Введите пароль.', mfa_required: 'Введите код подтверждения.',
+    invalid_token: 'Ссылка недействительна или устарела. Запросите новую.', invalid_password: 'Пароль не подходит под правила.',
   };
-  const result = (res, r) => (r.error ? apiError(res, STATUS[r.error] || 400, r.error, MESSAGES[r.error] || 'Ошибка.') : send(res, 200, { data: r.data }));
+  const result = (res, r) => (r.error ? apiError(res, STATUS[r.error] || 400, r.error, r.message || MESSAGES[r.error] || 'Ошибка.') : send(res, 200, { data: r.data }));
   const internalOk = (req) => {
     const want = Buffer.from(config.internalToken || ''); const got = Buffer.from(String(req.headers['x-internal-token'] || ''));
     return want.length >= 16 && want.length === got.length && crypto.timingSafeEqual(want, got);
@@ -180,9 +187,18 @@ function createApp({ store, config, now }) {
     if (path.startsWith('/v1/account/')) {
       const a = await authed(req, res); if (!a) return;
       const op = path.slice('/v1/account/'.length);
-      if (method === 'GET' && op === 'security') return send(res, 200, { data: await svc.security(a.account) });
+      if (method === 'GET' && op === 'security') return send(res, 200, { data: { ...(await svc.security(a.account)), protection: await protect.status(a.account.login) } });
+      if (method === 'GET' && op === 'devices') return send(res, 200, { data: await protect.devices(a.account) });
+      if (method === 'POST' && op === 'protection') {
+        const body = parseBody(req, await readBody(req)); if (!body) return apiError(res, 400, 'bad_request', MESSAGES.bad_request);
+        return result(res, await protect.set(a.account, body));
+      }
       if (method === 'GET' && op === 'sessions') return send(res, 200, { data: await svc.sessions(a.account, a.session) });
-      if (method === 'GET' && op === 'history') return send(res, 200, { data: await svc.history(a.account) });
+      if (method === 'GET' && op === 'history') {
+        // входы лаунчера и сайта (core_login_events) и входы в игру (account_logins, ведёт мод), свежие сверху
+        const [apps, game] = await Promise.all([svc.history(a.account), protect.gameHistory(a.account)]);
+        return send(res, 200, { data: [...apps, ...game].sort((x, y) => (x.at < y.at ? 1 : -1)).slice(0, 50) });
+      }
       if (method === 'GET' && op === 'wallet') return send(res, 200, { data: await svc.wallet(a.account) });
       if (method === 'GET' && op === 'characters') return send(res, 200, { data: await svc.characters(a.account) });
       if (method === 'POST' && op === 'sessions/revoke') {
@@ -201,7 +217,20 @@ function createApp({ store, config, now }) {
       return apiError(res, 404, 'not_found', MESSAGES.not_found);
     }
 
+    // ---- сброс пароля через сайт: страница сайта проверяет ссылку и принимает новый пароль (без входа в аккаунт)
+    if (path === '/v1/password/reset' && method === 'GET') return result(res, await reset.check(url.searchParams.get('token'), ipOf(req)));
+    if (path === '/v1/password/reset' && method === 'POST') {
+      const body = parseBody(req, await readBody(req)); if (!body) return apiError(res, 400, 'bad_request', MESSAGES.bad_request);
+      return result(res, await reset.confirm(body, ipOf(req)));
+    }
+
     // ---- служебное: игровой сервер или cron присылает онлайн (по общему секрету, не из лаунчера)
+    // сайт запрашивает токен сброса (письмо отправляет сайт): по общему секрету, как и остальные /v1/internal/*
+    if (path === '/v1/internal/password/token' && method === 'POST') {
+      if (!internalOk(req)) return apiError(res, 404, 'not_found', MESSAGES.not_found);
+      const body = parseBody(req, await readBody(req)); if (!body) return apiError(res, 400, 'bad_request', MESSAGES.bad_request);
+      return result(res, await reset.issue(body.identifier));
+    }
     const m = /^\/v1\/internal\/servers\/([A-Za-z0-9_-]{1,40})\/stats$/.exec(path);
     if (m && method === 'POST') {
       if (!internalOk(req)) return apiError(res, 404, 'not_found', MESSAGES.not_found); // без секрета маршрута «нет»

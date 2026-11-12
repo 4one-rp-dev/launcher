@@ -94,6 +94,8 @@ function createBackend(api, log) {
         case 'mfaEnable': return api.post('/v1/account/2fa/enable', { code: extra && extra.code });
         case 'mfaDisable': return api.post('/v1/account/2fa/disable', { code: extra && extra.code });
         case 'mfaBackup': return api.post('/v1/account/2fa/backup', { code: extra && extra.code });
+        case 'devices': return api.get('/v1/account/devices');
+        case 'protection': return api.post('/v1/account/protection', { enabled: !!(extra && extra.enabled), password: extra && extra.password, code: extra && extra.code });
         default: return fail('bad_request');
       }
     },

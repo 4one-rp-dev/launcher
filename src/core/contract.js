@@ -17,7 +17,7 @@ const CHANNELS = [
   'prefs:get', 'prefs:set', 'prefs:reset',
   'codes:redeem', 'codes:history',
   'account:security', 'account:sessions', 'account:revokeSession', 'account:revokeOthers', 'account:history', 'account:wallet', 'account:characters',
-  'account:mfaStatus', 'account:mfaSetup', 'account:mfaEnable', 'account:mfaDisable', 'account:mfaBackup',
+  'account:mfaStatus', 'account:mfaSetup', 'account:mfaEnable', 'account:mfaDisable', 'account:mfaBackup', 'account:devices', 'account:setProtection',
   'settings:get', 'settings:set', 'settings:reset',
   'update:check', 'update:download', 'update:install',
 ];
@@ -51,6 +51,8 @@ const ERRORS = {
   mfa_already_enabled: 'Двухфакторная защита уже включена.',
   mfa_not_pending: 'Начните подключение заново: отсканируйте новый QR-код.',
   mfa_not_enabled: 'Двухфакторная защита не включена.',
+  password_required: 'Введите пароль от аккаунта.',
+  mfa_required: 'Введите код подтверждения из приложения.',
   // сессия
   invalid_session: 'Сессия недействительна. Войдите заново.',
   session_revoked: 'Сессия отозвана. Войдите заново.',

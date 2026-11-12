@@ -134,6 +134,8 @@ function createAccount(deps) {
     mfaEnable: (code) => op('mfaEnable', { code }, {}),
     mfaDisable: (code) => op('mfaDisable', { code }, {}),
     mfaBackup: (code) => op('mfaBackup', { code }, {}),
+    devices: () => op('devices', null, []),
+    setProtection: (enabled, password, code) => op('protection', { enabled, password, code }, {}),
   };
 }
 

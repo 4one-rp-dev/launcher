@@ -209,8 +209,27 @@ function createMock(opts) {
     },
     async mfaEnable(code) { await delay(300); if (!S.mfaPending) return fail('mfa_not_pending'); if (code !== '123456') return fail('invalid_mfa_code'); S.mfaOn = true; S.mfaPending = false; return ok({ enabled: true, backupCodes: ['K7QM-4XPA', 'R2DW-9HTZ', 'BN5C-7YUE', 'P3LS-8GVK', 'W6TF-2QMN', 'H9XJ-5RAD', 'C4EV-6KPW', 'Y8NB-3STL', 'G5ZH-7MQR', 'U2AK-9DFX'] }); },
     async mfaDisable(code) { await delay(300); if (!S.mfaOn) return fail('mfa_not_enabled'); if (code !== '123456') return fail('invalid_mfa_code'); S.mfaOn = false; return ok({ enabled: false }); },
+    async devices() {
+      await delay(250);
+      return ok([
+        { id: 'A1B2C3D4E5', firstAt: ago(60 * 24 * 40), lastAt: ago(0), logins: 128, trusted: true, ip: '185.23.14.x' },
+        { id: 'F6A7B8C9D0', firstAt: ago(60 * 24 * 2), lastAt: ago(60 * 24), logins: 3, trusted: false, ip: '94.25.77.x' },
+      ]);
+    },
+    // как Core API: включить можно сразу; отключить — с паролем и кодом 2FA, сработает через 24 часа
+    async setProtection(enabled, password, code) {
+      await delay(300);
+      S.prot = S.prot || { enabled: true, offAt: null };
+      if (enabled) { S.prot = { enabled: true, offAt: null }; return ok(S.prot); }
+      if (!password) return fail('password_required');
+      if (password === 'wrong') return fail('invalid_credentials');
+      if (S.mfaOn && !code) return fail('mfa_required');
+      if (S.mfaOn && code !== '123456') return fail('invalid_mfa_code');
+      if (!S.prot.offAt) S.prot = { enabled: true, offAt: new Date(Date.now() + 24 * 3600e3).toISOString() };
+      return ok(S.prot);
+    },
     async mfaBackup(code) { await delay(300); if (code !== '123456') return fail('invalid_mfa_code'); return ok({ backupCodes: ['M3QX-7PKA', 'T8RW-2HDZ', 'BV5C-9YNE', 'Q4LS-6GXK', 'W7TF-3ZMN', 'J9XA-5RCD', 'C2EV-8KPU', 'Y6NB-4STH', 'G3ZH-7WQR', 'U5AK-2DFL'] }); },
-    async security() { await delay(200); return ok({ emailVerified: true, twoFactor: !!S.mfaOn, passwordSet: true, links: [
+    async security() { await delay(200); return ok({ emailVerified: true, twoFactor: !!S.mfaOn, passwordSet: true, protection: Object.assign({ tradeBanUntil: null, tradeBanReason: '' }, S.prot || { enabled: true, offAt: null }), links: [
       { provider: 'discord', linked: true, label: 'dante#2026' }, { provider: 'email', linked: true, label: PROFILE.email },
       { provider: 'google', linked: false, label: '' }, { provider: 'telegram', linked: false, label: '' }, { provider: 'steam', linked: false, label: '' }, { provider: 'vk', linked: false, label: '' }] }); },
     async sessions() { await delay(250); return ok(S.sessions.map((x) => Object.assign({}, x))); },

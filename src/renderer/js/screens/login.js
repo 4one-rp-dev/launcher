@@ -77,6 +77,7 @@ export function mount(root) {
           <button class="ib" type="button" data-act="peek" aria-label="${t('Показать пароль')}" title="${t('Показать пароль')}">${ic('eye')}</button></span></label>
         <p class="lg-err" id="lg-err" role="alert" hidden></p>
         <button class="bt xl wide" type="submit" id="pw-go">${t('Войти')}</button>
+        <p class="lg-foot"><button class="link" type="button" data-act="forgot">${t('Забыли пароль?')}</button></p>
       </form>
       <div class="lg-or"><span>${t('или')}</span></div>
       <div class="lg-row"><button class="bt g wide" data-act="site">${ic('globe')}${t('Через сайт')}</button><button class="bt g wide" data-act="guest">${ic('gamepad')}${t('Играть без входа')}</button></div>
@@ -165,6 +166,7 @@ export function mount(root) {
     else if (act === 'cancel') await call('auth:cancel');
     else if (act === 'again') { const r = await call('auth:login'); if (!r.ok) toast('err', r.message); }
     else if (act === 'backup') { backup = !backup; paint(true); }
+    else if (act === 'forgot') { const r = await call('app:openExternal', 'resetPassword'); if (!r.ok) toast('err', r.message); } // пароль сбрасывают на сайте
     else if (act === 'to-reg') { mode = 'register'; paint(true); }
     else if (act === 'to-login') { mode = 'login'; paint(true); }
     else if (act === 'peek-reg') { const p1 = $('#rg-pass', root); const p2 = $('#rg-pass2', root); const show = p1.type === 'password'; p1.type = p2.type = show ? 'text' : 'password'; a.setAttribute('aria-pressed', String(show)); }

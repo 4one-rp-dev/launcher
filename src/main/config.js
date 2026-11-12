@@ -69,6 +69,7 @@ module.exports = {
     forum: 'https://www.4onerp.com/',            // TODO(links): «Форум»
     donate: 'https://www.4onerp.com/',           // TODO(links): «Донат»
     support: 'https://www.4onerp.com/',          // TODO(links): «Поддержка»
+    resetPassword: 'https://www.4onerp.com/reset-password', // страница сброса пароля на сайте (Core API: POST /v1/password/reset)
     discord: 'https://www.4onerp.com/',          // TODO(links): инвайт Discord
   },
   /** Хосты, на которые openExternal разрешён для http(s)-ссылок из данных сервера (новости) */
