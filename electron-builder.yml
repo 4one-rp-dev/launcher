@@ -1,6 +1,5 @@
 # Сборка установщика под Windows (NSIS) + автообновление через electron-updater.
-# Лента обновлений: Supabase Storage, бакет launcher-updates, папка launcher-electron/
-# (старая WPF/Velopack-лента лежит в launcher/ — не смешиваем).
+# Лента обновлений — релизы GitHub репозитория 4one-rp-dev/launcher (теги v*): latest.yml и установщик.
 appId: com.4onerp.launcher
 productName: 4ONE Launcher
 copyright: 4ONE RP
@@ -22,16 +21,32 @@ win:
   # Подпись кода: задайте CSC_LINK / CSC_KEY_PASSWORD (или win.certificateFile).
   # Без подписи SmartScreen покажет предупреждение.
 nsis:
+  # Мастер установки как у игровых лаунчеров: приветствие -> папка -> установка -> «Запустить 4ONE Launcher».
   oneClick: false
-  perMachine: false
+  perMachine: false                       # в профиль пользователя: без UAC, автообновление без прав администратора
+  allowElevation: true
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
   shortcutName: 4ONE Launcher
+  uninstallDisplayName: 4ONE Launcher
+  runAfterFinish: true
+  language: "1049"                        # русский
+  installerLanguages: [ru_RU]
+  multiLanguageInstaller: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+  installerSidebar: build/installerSidebar.bmp
+  uninstallerSidebar: build/uninstallerSidebar.bmp
+  installerHeader: build/installerHeader.bmp
+  include: build/installer.nsh            # при удалении: спросить, стирать ли настройки и скачанный клиент
   deleteAppDataOnUninstall: false
 protocols:
   - name: 4ONE Launcher
     schemes: [gta4one]
 publish:
-  provider: generic
-  url: https://cdn.4onerp.com/launcher/   # TODO(cdn-url): боевой адрес статики
+  provider: github
+  owner: 4one-rp-dev
+  repo: launcher
+  releaseType: release

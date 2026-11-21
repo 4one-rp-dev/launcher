@@ -49,15 +49,45 @@ const me = (await (await fetch(`${API}/v1/me`, { headers: { Authorization: `Bear
 | кошелёк, персонажи, сессии, история входов, безопасность | `GET /v1/account/wallet\|characters\|sessions\|history\|security` |
 | завершить сессию | `POST /v1/account/sessions/revoke` `{ id }`, `/sessions/revoke-others` |
 
-Ответ: `{ "data": … }`, ошибка: `{ "error": "<код>", "error_description": "…" }` (коды: `invalid_token` 401, `forbidden` 403, `promo_*`, `busy` 429).
+| двухфакторная защита | `GET /v1/account/2fa`, `POST /v1/account/2fa/setup\|enable\|disable\|backup` (см. README) |
+
+Ответ: `{ "data": … }`, ошибка: `{ "error": "<код>", "error_description": "…" }` (коды: `invalid_token` 401, `forbidden` 403, `promo_*`, `busy` 429, `invalid_mfa_code` 401, `rate_limited` 429, `mfa_already_enabled`/`mfa_not_pending`/`mfa_not_enabled` 409).
+
+**2FA на сайте.** Сайту ничего делать не нужно: если у игрока включена 2FA, страница `/oauth/authorize` сама покажет второй шаг (код из приложения или резервный) и только потом вернёт браузер на `redirect_uri` с кодом. Включение в личном кабинете: `setup` → показать QR из `otpauth` (и `secret` текстом) → `enable {code}` → показать `backupCodes` один раз.
 
 ## 5. Лаунчер
 Использует тот же API: клиент `4one-launcher`, возврат `gta4one://auth/callback` (уже есть по умолчанию). Адрес API лаунчер берёт из `L4_CORE_URL` (`src/main/config.js`, `core.url`).
+Прямой вход без браузера:
+```js
+let r = await post('/v1/auth/login', { client_id: '4one-launcher', login, password, device_name });
+if (r.mfa_required) r = await post('/v1/auth/mfa', { client_id: '4one-launcher', mfa_token: r.mfa_token, code }); // 6 цифр или XXXX-XXXX
+// r: { access_token, token_type, expires_in, refresh_token, scope } — дальше как после /oauth/token
+```
+`invalid_mfa_code` 401 — попросить код ещё раз с тем же `mfa_token`; `mfa_expired` 400 — вернуть на ввод пароля; `rate_limited` 429 — подождать.
 
 ## 6. Что на стороне игры (чтобы всё работало вместе)
 - Колонка `accounts.alvl` и её чтение/запись в игре — gamemod, миграция `009_accounts_alvl.sql`, `Core/AdminAuth.cs`.
 - Зачисление 4Coin за промокоды — gamemod `Core/CoreRewards.cs` (без него промокоды в игру не дойдут).
-- Регистрацию нового аккаунта API не делает: аккаунты создаются в игре.
+- Регистрация нового аккаунта: `POST /v1/auth/register` (доверенные клиенты) — строка `accounts` как у игры; игра привязывает SocialClub при первом входе.
+- Защита аккаунта (трекер входов, трейд-бан): таблицы `account_security`, `account_devices`, `account_logins` ведёт мод (миграция мода `018_login_tracker.sql`), API читает их и пишет только переключатель; см. раздел 8.
 
 ## 7. Чего пока нет
-Регистрации и смены пароля на сайте, подтверждения почты, 2FA, экрана согласия для сторонних приложений (клиенты только свои), админ-разделов («Игроки», «Журнал», «Управление проектом» — право есть, страниц нет).
+Страниц сброса пароля на сайте (API готов, раздел 8), подтверждения почты, 2FA при входе в саму игру, экрана согласия для сторонних приложений (клиенты только свои), админ-разделов («Игроки», «Журнал», «Управление проектом» — право есть, страниц нет).
+
+## 8. Защита аккаунта и сброс пароля (sql/005_security.sql)
+
+Полная схема — `gamemod/docs/SECURITY_CYCLE.md`. Для сайта и лаунчера:
+
+**Для залогиненного пользователя** (`Authorization: Bearer`):
+- `GET /v1/account/security` → в ответе `protection: { enabled, offAt, tradeBanUntil, tradeBanReason }`. `enabled` — защита действует сейчас; `offAt` — отключение запрошено и сработает в это время; `tradeBanUntil` — до какого времени игроку запрещено продавать и передавать имущество (вход с нового устройства).
+- `POST /v1/account/protection { enabled: true }` — включить сразу. `{ enabled: false, password, code? }` — запросить отключение: нужен пароль и код 2FA (если подключена), отключение сработает через 24 часа, повторный запрос срок не сдвигает. Ошибки: `password_required` 400, `invalid_credentials` 401, `mfa_required` 400, `invalid_mfa_code` 401, `rate_limited` 429 (5 неверных паролей за 10 минут).
+- `GET /v1/account/devices` → `[{ id, firstAt, lastAt, logins, trusted, ip }]` — устройства, с которых входили в игру (`id` — короткий отпечаток, сам HWID не отдаётся, `ip` с маской).
+- `GET /v1/account/history` теперь включает входы в игру: `method: "game"`, `newDevice`, `reason`.
+
+**Сброс пароля** (письма отправляет сайт, у API нет SMTP):
+1. Сайт: `POST /v1/internal/password/token` с заголовком `X-Internal-Token` и телом `{ "identifier": "<логин или почта>" }` → `{ data: { token, login, email, expiresAt } }`; 404, если аккаунта нет (сайту отвечать пользователю одинаково в любом случае, чтобы не раскрывать, есть ли почта). Не больше 3 токенов в час на аккаунт (`rate_limited`).
+2. Сайт шлёт на `email` письмо со ссылкой на свою страницу, например `https://www.4onerp.com/reset-password?token=<token>`. Токен живёт 30 минут, одноразовый.
+3. Страница проверяет ссылку: `GET /v1/password/reset?token=…` → `{ data: { valid: true, mfaRequired } }` или `invalid_token` 400.
+4. Страница отправляет `POST /v1/password/reset { token, password, code? }` (правила пароля как при регистрации; `code` обязателен, если `mfaRequired`) → `{ data: { reset: true } }`. Ошибки: `invalid_token`, `invalid_password` (с текстом), `mfa_required`, `invalid_mfa_code`, `rate_limited`.
+5. После успеха: сессии отозваны, игрока выбросит из игры, устройства перестают быть доверенными (бан 72 ч при следующем входе), защита включена.
+Права БД и зависимость от мода — в начале `sql/005_security.sql`. Включить маршруты: `CORE_INTERNAL_TOKEN` в окружении (без него `/v1/internal/*` выключены).

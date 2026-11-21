@@ -52,9 +52,10 @@ function createServices({ store, now = () => new Date() }) {
   }
 
   async function security(account) {
-    // в таблице accounts нет подтверждения почты и 2FA: показываем то, что есть, остальное — как «нет»
+    // подтверждения почты в accounts нет — «нет»; 2FA — из core_mfa (включена, если есть подтверждённый секрет)
+    const mfa = store.getMfa ? await store.getMfa(account.login) : null;
     return {
-      emailVerified: false, twoFactor: false, passwordSet: !!account.passwordHash,
+      emailVerified: false, twoFactor: !!(mfa && mfa.enabledAt && mfa.secretEnc), passwordSet: !!account.passwordHash,
       links: [{ provider: 'socialclub', linked: !!account.socialClub, label: account.socialClub || '' }],
     };
   }

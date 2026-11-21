@@ -20,6 +20,9 @@ function str(v, max) { return typeof v === 'string' && v.length > 0 && v.length 
 /**
  * @param {object} s  сервисы: app, win, auth, data, game, codes, account, settings, updater
  */
+// код 2FA: 6 цифр из приложения или резервный XXXX-XXXX
+const MFA_RE = /^(?:[0-9]{6}|[A-Za-z2-9]{4}-?[A-Za-z2-9]{4})$/;
+
 function createHandlers(s) {
   const guard = (fn) => async (...a) => {
     try { return await fn(...a); }
@@ -36,10 +39,13 @@ function createHandlers(s) {
       return s.app.openExternal(key);
     },
     'app:openPath': async (kind) => {
-      if (!['logs', 'game', 'userdata'].includes(kind)) return fail('bad_request');
+      if (!['logs', 'game', 'userdata', 'cache', 'root'].includes(kind)) return fail('bad_request');
       return s.app.openPath(kind);
     },
     'app:copyDiagnostics': async () => s.app.copyDiagnostics(),
+    'app:cacheInfo': async () => s.app.cacheInfo(),
+    'app:clearCache': async () => s.app.clearCache(),
+    'app:copyText': async (text) => (str(text, 4000) ? s.app.copyText(String(text)) : fail('bad_request')),
 
     'win:minimize': async () => { s.win.minimize(); return ok(); },
     'win:toggleMaximize': async () => ok(s.win.toggleMaximize()),
@@ -50,6 +56,24 @@ function createHandlers(s) {
     'auth:login': async () => s.auth.login(),
     'auth:cancel': async () => s.auth.cancel(),
     'auth:logout': async () => s.auth.logout(),
+    'auth:guest': async (on) => s.auth.guest(on !== false),
+    // вход по логину и паролю прямо в лаунчере: пароль уходит только в Core API по https и нигде не хранится
+    'auth:password': async (login, password) => {
+      if (!str(login, 64) || typeof password !== 'string' || !password || password.length > 128) return fail('invalid_credentials');
+      return s.auth.passwordLogin(String(login).trim(), password);
+    },
+    'auth:mfa': async (code) => (MFA_RE.test(String(code || '')) ? s.auth.submitMfa(String(code)) : fail('invalid_mfa_code')),
+    'auth:mfaCancel': async () => s.auth.cancelMfa(),
+    // регистрация игрового аккаунта: те же правила, что в игре; окончательная проверка — на сервере
+    'auth:register': async (f) => {
+      if (!f || typeof f !== 'object') return fail('bad_request');
+      const login = String(f.login || '').trim(); const email = String(f.email || '').trim(); const password = String(f.password || ''); const promo = String(f.promo || '').trim();
+      if (!/^[A-Za-z][A-Za-z0-9_]{2,23}$/.test(login)) return fail('invalid_login');
+      if (password.length < 8 || password.length > 64 || /[^!-~]/.test(password) || !/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return fail('invalid_password');
+      if (email.length > 64 || !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) return fail('invalid_email');
+      if (promo && !/^[A-Za-z0-9]{1,16}$/.test(promo)) return fail('invalid_promo');
+      return s.auth.register({ login, email, password, promo });
+    },
 
     'data:bootstrap': async (force) => s.data.bootstrap(!!force),
 
@@ -59,6 +83,11 @@ function createHandlers(s) {
     },
 
     'game:state': async () => ok(s.game.getState()),
+    'game:relocate': async () => (s.game.relocate ? s.game.relocate() : fail('bad_request')),
+    // настройки игры: меню F1 клиента (player.cfg) и settings.xml самой GTA V
+    'prefs:get': async (force) => s.prefs.get(!!force),
+    'prefs:set': async (patch) => (patch && typeof patch === 'object' && !Array.isArray(patch) && Object.keys(patch).length <= 8 ? s.prefs.set(patch) : fail('bad_request')),
+    'prefs:reset': async (group) => (['keys', 'look', 'all'].includes(group) ? s.prefs.reset(group) : fail('bad_request')),
     'game:detect': async () => s.game.detect(),
     'game:browse': async () => s.game.browse(),
     'game:setPath': async (p) => (str(p, 1024) ? s.game.setPath(p) : fail('bad_request')),
@@ -83,6 +112,21 @@ function createHandlers(s) {
     'account:history': async () => s.account.history(),
     'account:wallet': async () => s.account.wallet(),
     'account:characters': async () => s.account.characters(),
+    'account:mfaStatus': async () => s.account.mfaStatus(),
+    'account:mfaSetup': async () => s.account.mfaSetup(),
+    'account:mfaEnable': async (code) => (/^[0-9]{6}$/.test(String(code || '')) ? s.account.mfaEnable(String(code)) : fail('invalid_mfa_code')),
+    'account:mfaDisable': async (code) => (MFA_RE.test(String(code || '')) ? s.account.mfaDisable(String(code)) : fail('invalid_mfa_code')),
+    'account:mfaBackup': async (code) => (/^[0-9]{6}$/.test(String(code || '')) ? s.account.mfaBackup(String(code)) : fail('invalid_mfa_code')),
+    'account:devices': async () => s.account.devices(),
+    // защита от кражи имущества: включить можно без подтверждения, отключить — с паролем и (если есть) кодом 2FA, действует через 24 часа
+    'account:setProtection': async (enabled, password, code) => {
+      if (typeof enabled !== 'boolean') return fail('bad_request');
+      if (enabled) return s.account.setProtection(true);
+      if (typeof password !== 'string' || !password) return fail('password_required');
+      if (password.length > 200) return fail('invalid_credentials');
+      if (code != null && code !== '' && !MFA_RE.test(String(code))) return fail('invalid_mfa_code');
+      return s.account.setProtection(false, password, code ? String(code) : undefined);
+    },
 
     'settings:get': async () => ok(s.settings.get()),
     'settings:reset': async () => ok(await s.settings.reset()),

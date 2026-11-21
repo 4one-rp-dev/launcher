@@ -3,7 +3,8 @@
  * Хранилище. Два варианта с одним интерфейсом:
  *  - memory: для разработки и тестов (данные из seed);
  *  - mysql: игровая MariaDB, одна база. Читаем accounts (в т.ч. alvl — уровень администрации), characters, banned;
- *    пишем только в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql).
+ *    пишем в свои таблицы core_* (sql/001_core_api.sql, 002_content.sql, 003_mfa.sql, 005_security.sql); в accounts — INSERT нового
+ *    аккаунта при регистрации (sql/004_signup.sql) и UPDATE колонки password при сбросе пароля через сайт; остальное в строках игры не меняем.
  * Время — Date (UTC), хеши токенов — hex sha256.
  */
 
@@ -26,13 +27,33 @@ function normAccount(a) {
 function createMemoryStore(seed = {}) {
   const accounts = (seed.accounts || []).map((a) => ({ ...normAccount(a), characters: a.characters || [], banned: !!a.banned, lastAt: a.lastAt || null }));
   const codes = new Map(); const sessions = new Map(); const tokens = new Map();
-  const find = (id) => accounts.find((a) => a.login === id) || accounts.find((a) => a.email && a.email.toLowerCase() === String(id).toLowerCase()) || null;
+  const mfa = new Map(); const backup = new Map();
+  const security = new Map(); const devices = new Map(); const gameLogins = new Map(); const resets = new Map();
+  const lc = (s) => String(s || '').toLowerCase();
+  const byLogin = (id) => accounts.find((a) => a.login === id) || accounts.find((a) => lc(a.login) === lc(id)) || null;
+  const byEmail = (email) => accounts.find((a) => a.email && lc(a.email) === lc(email)) || null;
+  // логин без учёта регистра, как в игре (точное совпадение — первым), затем почта
+  const find = (id) => byLogin(id) || byEmail(id);
 
   return {
     ...createMemoryContent(seed),
     kind: 'memory',
     async findAccount(identifier) { return find(identifier); },
+    async findAccountByEmail(email) { return byEmail(email); },
     async getAccount(login) { return accounts.find((a) => a.login === login) || null; },
+    /** Регистрация: проверка занятости и вставка без await между ними — атомарно в одном процессе. */
+    async createAccount(r) {
+      if (byLogin(r.login)) return { error: 'login_taken' };
+      if (byEmail(r.email)) return { error: 'email_taken' };
+      const vipDate = r.vipLvl > 0 ? new Date(r.now.getTime() + r.vipDays * 86400000) : r.now;
+      const a = {
+        ...normAccount({ login: r.login, email: r.email, passwordHash: r.passwordHash, socialClub: '', redbucks: r.redbucks, vipLvl: r.vipLvl, vipDate, alvl: 0 }),
+        characters: [], banned: false, lastAt: null,
+        game: { hwid: '', ip: r.ip, promocodes: JSON.stringify([r.promo]), bonuscodes: '[]', character1: -1, character2: -1, character3: -1, characters: '[-2,-2,-2,-2,-2,-2]' },
+      };
+      accounts.push(a);
+      return { account: a };
+    },
     async listCharacters(account) { return (account.characters || []).map((c) => ({ ...c })); },
     async isBanned(account) { return !!account.banned; },
     async lastSeen(account) { return account.lastAt ? new Date(account.lastAt) : null; },
@@ -72,7 +93,62 @@ function createMemoryStore(seed = {}) {
       for (const [h, c] of codes) if (c.expiresAt <= now) codes.delete(h);
       for (const [h, t] of tokens) if (t.expiresAt <= now) tokens.delete(h);
     },
-    _dump: () => ({ accounts, codes, sessions, tokens }),
+
+    // ---- 2FA (sql/003_mfa.sql)
+    async getMfa(login) { const r = mfa.get(login); return r ? { ...r } : null; },
+    async setMfaPending(login, pendingEnc, now) {
+      const r = mfa.get(login) || { login, secretEnc: null, enabledAt: null, lastStep: 0 };
+      if (r.enabledAt) return; // включённую 2FA setup не трогает
+      mfa.set(login, { ...r, pendingEnc, pendingAt: now, updatedAt: now });
+    },
+    async enableMfa(login, { pendingEnc, lastStep, now }) {
+      const r = mfa.get(login);
+      if (!r || r.enabledAt || r.pendingEnc !== pendingEnc) return false;
+      mfa.set(login, { ...r, secretEnc: pendingEnc, pendingEnc: null, pendingAt: null, enabledAt: now, lastStep, updatedAt: now });
+      return true;
+    },
+    async advanceMfaStep(login, step) {
+      const r = mfa.get(login);
+      if (!r || !r.enabledAt || r.lastStep >= step) return false;
+      r.lastStep = step; return true;
+    },
+    async disableMfa(login) { mfa.delete(login); backup.delete(login); },
+    async replaceBackupCodes(login, hashes, now) { backup.set(login, hashes.map((hash) => ({ hash, createdAt: now, usedAt: null }))); },
+    async useBackupCode(login, hash, now) {
+      const c = (backup.get(login) || []).find((x) => x.hash === hash && !x.usedAt);
+      if (!c) return false;
+      c.usedAt = now; return true;
+    },
+    async countBackupCodes(login) { return (backup.get(login) || []).filter((x) => !x.usedAt).length; },
+
+    // ---- защита аккаунта (sql/005_security.sql; таблицы account_* ведёт игровой мод, здесь — их образ для тестов)
+    async getSecurity(login) { const r = security.get(login); return r ? { ...r } : null; },
+    async setDisableAfter(login, at, now) {
+      security.set(login, { login, tradeBanUntil: null, tradeBanReason: '', forceLogoutAt: null, ...(security.get(login) || {}), disableAfter: at, updatedAt: now, updatedBy: 'core' });
+    },
+    async markForceLogout(login, now) {
+      security.set(login, { login, disableAfter: null, tradeBanUntil: null, tradeBanReason: '', ...(security.get(login) || {}), forceLogoutAt: now, updatedAt: now, updatedBy: 'core' });
+    },
+    async listDevices(login) { return (devices.get(login) || []).map((d) => ({ ...d })); },
+    async untrustDevices(login, now) { for (const d of devices.get(login) || []) { d.trusted = false; d.distrustAt = now; } },
+    async listGameLogins(login, limit) { return (gameLogins.get(login) || []).slice().sort((a, b) => b.at - a.at).slice(0, limit).map((x) => ({ ...x })); },
+
+    // ---- сброс пароля через сайт
+    async putReset(rec) { resets.set(rec.hash, { ...rec, usedAt: null }); },
+    /** Атомарно: токен гасится один раз и только пока не истёк. */
+    async takeReset(hash, now) {
+      const r = resets.get(hash);
+      if (!r || r.usedAt || r.expiresAt <= now) return null;
+      r.usedAt = now; return { ...r };
+    },
+    async peekReset(hash, now) { const r = resets.get(hash); return r && !r.usedAt && r.expiresAt > now ? { ...r } : null; },
+    async deleteResets(login) { for (const [h, r] of resets) if (r.login === login) resets.delete(h); },
+    async setPassword(login, passwordHash) { const a = accounts.find((x) => x.login === login); if (!a) return false; a.passwordHash = passwordHash; return true; },
+    async revokeAllSessions(login, now) {
+      for (const s of [...sessions.values()]) if (s.login === login && !s.revokedAt) await this.revokeSession(s.id, now);
+    },
+
+    _dump: () => ({ accounts, codes, sessions, tokens, mfa, backup, security, devices, gameLogins, resets }),
   };
 }
 
@@ -94,8 +170,45 @@ function createMysqlStore(pool, cfg) {
     ...createMysqlContent(pool),
     kind: 'mysql',
     async findAccount(identifier) {
-      const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? OR LOWER(email) = LOWER(?) LIMIT 1`, [identifier, identifier]);
+      // логин без учёта регистра, как в игре (Autorization/Repository.cs); точное совпадение логина — первым
+      const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? OR LOWER(login) = LOWER(?) OR LOWER(email) = LOWER(?) ORDER BY login = ? DESC, LOWER(login) = LOWER(?) DESC LIMIT 1`,
+        [identifier, identifier, identifier, identifier, identifier]);
       return rows[0] ? toAccount(rows[0]) : null;
+    },
+    async findAccountByEmail(email) {
+      const rows = await q(`SELECT ${COLS} FROM accounts WHERE LOWER(email) = LOWER(?) LIMIT 1`, [email]);
+      return rows[0] ? toAccount(rows[0]) : null;
+    },
+    /**
+     * Регистрация (POST /v1/auth/register): строка accounts такая же, как пишет игра (Accounts/Registration/Repository.cs).
+     * Уникального ключа без учёта регистра у accounts нет (PRIMARY KEY (login) в utf8mb4_bin, на email ключа нет),
+     * поэтому проверка и вставка идут под именованной блокировкой GET_LOCK: две регистрации API выполняются по очереди.
+     * PRIMARY KEY ловит точный дубль логина, если игра вставила его в тот же момент.
+     */
+    async createAccount(r) {
+      const conn = await pool.getConnection();
+      try {
+        const [[l]] = await conn.query("SELECT GET_LOCK('4one_core_signup', 5) AS ok");
+        if (!l || Number(l.ok) !== 1) return { error: 'busy' };
+        try {
+          const [taken] = await conn.execute('SELECT 1 AS x FROM accounts WHERE LOWER(login) = LOWER(?) LIMIT 1', [r.login]);
+          if (taken.length) return { error: 'login_taken' };
+          const [mail] = await conn.execute('SELECT 1 AS x FROM accounts WHERE LOWER(email) = LOWER(?) LIMIT 1', [r.email]);
+          if (mail.length) return { error: 'email_taken' };
+          // vipdate по часам БД (NOW()), как DateTime.Now в игре
+          await conn.execute(
+            'INSERT INTO accounts (login, email, `password`, hwid, ip, socialclub, redbucks, viplvl, vipdate, promocodes, bonuscodes, character1, character2, character3, `characters`, `case`, CollectionGifts, `Unique`, ga) '
+            + "VALUES (?, ?, ?, '', ?, '', ?, ?, IF(? > 0, NOW() + INTERVAL ? DAY, NOW()), ?, '[]', -1, -1, -1, '[-2,-2,-2,-2,-2,-2]', '[0,0,0]', '[]', '', '')",
+            [r.login, r.email, r.passwordHash, String(r.ip || '').slice(0, 256), r.redbucks, r.vipLvl, r.vipLvl, r.vipDays, JSON.stringify([r.promo])]);
+        } catch (e) {
+          if (e && e.code === 'ER_DUP_ENTRY') return { error: 'login_taken' };
+          throw e;
+        } finally {
+          await conn.query("SELECT RELEASE_LOCK('4one_core_signup')").catch(() => {});
+        }
+      } finally { conn.release(); }
+      const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? LIMIT 1`, [r.login]);
+      return { account: rows[0] ? toAccount(rows[0]) : null };
     },
     async getAccount(login) {
       const rows = await q(`SELECT ${COLS} FROM accounts WHERE login = ? LIMIT 1`, [login]);
@@ -158,9 +271,98 @@ function createMysqlStore(pool, cfg) {
       return rows[0] ? { sessionId: rows[0].session_id, login: rows[0].login, expiresAt: new Date(rows[0].expires_at) } : null;
     },
     async deleteTokensOfSession(id) { await q('DELETE FROM core_oauth_tokens WHERE session_id = ?', [id]); },
+    // ---- 2FA (sql/003_mfa.sql)
+    async getMfa(login) {
+      const rows = await q('SELECT login, secret_enc, pending_enc, pending_at, enabled_at, last_step FROM core_mfa WHERE login = ?', [login]);
+      const r = rows[0];
+      return r ? {
+        login: r.login, secretEnc: r.secret_enc, pendingEnc: r.pending_enc, pendingAt: r.pending_at ? new Date(r.pending_at) : null,
+        enabledAt: r.enabled_at ? new Date(r.enabled_at) : null, lastStep: Number(r.last_step) || 0,
+      } : null;
+    },
+    async setMfaPending(login, pendingEnc, now) {
+      // включённую 2FA не трогаем: ожидающий секрет меняется, только пока enabled_at пуст
+      await q('INSERT INTO core_mfa (login, pending_enc, pending_at, updated_at) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE pending_enc = IF(enabled_at IS NULL, VALUES(pending_enc), pending_enc), pending_at = IF(enabled_at IS NULL, VALUES(pending_at), pending_at), updated_at = VALUES(updated_at)',
+        [login, pendingEnc, now, now]);
+    },
+    async enableMfa(login, { pendingEnc, lastStep, now }) {
+      const res = await q('UPDATE core_mfa SET secret_enc = pending_enc, pending_enc = NULL, pending_at = NULL, enabled_at = ?, last_step = ?, updated_at = ? WHERE login = ? AND enabled_at IS NULL AND pending_enc = ?',
+        [now, lastStep, now, login, pendingEnc]);
+      return res.affectedRows > 0;
+    },
+    async advanceMfaStep(login, step) {
+      // условный UPDATE: из двух одновременных запросов с одним кодом пройдёт один
+      const res = await q('UPDATE core_mfa SET last_step = ? WHERE login = ? AND enabled_at IS NOT NULL AND last_step < ?', [step, login, step]);
+      return res.affectedRows > 0;
+    },
+    async disableMfa(login) {
+      await q('DELETE FROM core_mfa_backup WHERE login = ?', [login]);
+      await q('DELETE FROM core_mfa WHERE login = ?', [login]);
+    },
+    async replaceBackupCodes(login, hashes, now) {
+      await q('DELETE FROM core_mfa_backup WHERE login = ?', [login]);
+      if (hashes.length) await q(`INSERT INTO core_mfa_backup (login, code_hash, created_at) VALUES ${hashes.map(() => '(?,?,?)').join(',')}`, hashes.flatMap((x) => [login, x, now]));
+    },
+    async useBackupCode(login, hash, now) {
+      const res = await q('UPDATE core_mfa_backup SET used_at = ? WHERE login = ? AND code_hash = ? AND used_at IS NULL', [now, login, hash]);
+      return res.affectedRows > 0;
+    },
+    async countBackupCodes(login) {
+      const rows = await q('SELECT COUNT(*) AS n FROM core_mfa_backup WHERE login = ? AND used_at IS NULL', [login]);
+      return Number(rows[0] && rows[0].n) || 0;
+    },
+
+    // ---- защита аккаунта (sql/005_security.sql; таблицы account_* ведёт игровой мод). Время — UTC.
+    async getSecurity(login) {
+      const rows = await q('SELECT disable_after, trade_ban_until, trade_ban_reason, force_logout_at FROM account_security WHERE login = ?', [login]);
+      const r = rows[0]; const d = (v) => (v ? new Date(v) : null);
+      return r ? { login, disableAfter: d(r.disable_after), tradeBanUntil: d(r.trade_ban_until), tradeBanReason: r.trade_ban_reason || '', forceLogoutAt: d(r.force_logout_at) } : null;
+    },
+    async setDisableAfter(login, at, now) {
+      await q("INSERT INTO account_security (login, disable_after, updated_at, updated_by) VALUES (?,?,?,'core') ON DUPLICATE KEY UPDATE disable_after = VALUES(disable_after), updated_at = VALUES(updated_at), updated_by = 'core'", [login, at, now]);
+    },
+    async markForceLogout(login, now) {
+      await q("INSERT INTO account_security (login, force_logout_at, updated_at, updated_by) VALUES (?,?,?,'core') ON DUPLICATE KEY UPDATE force_logout_at = VALUES(force_logout_at), updated_at = VALUES(updated_at), updated_by = 'core'", [login, now, now]);
+    },
+    async listDevices(login) {
+      const rows = await q('SELECT hwid, ip, socialclub, first_seen, last_seen, logins, trusted FROM account_devices WHERE login = ? ORDER BY last_seen DESC LIMIT 20', [login]);
+      return rows.map((r) => ({ hwid: r.hwid, ip: r.ip, socialClub: r.socialclub, firstSeen: new Date(r.first_seen), lastSeen: new Date(r.last_seen), logins: Number(r.logins) || 0, trusted: !!r.trusted }));
+    },
+    // доверие сбрасывается с отметкой времени: срок бана нового устройства отсчитывается от неё (мод, DevicePolicy)
+    async untrustDevices(login, now) { await q('UPDATE account_devices SET trusted = 0, distrust_at = ? WHERE login = ?', [now, login]); },
+    async listGameLogins(login, limit) {
+      const n = Math.max(1, Math.min(200, Number(limit) || 50));
+      const rows = await q(`SELECT at, ip, hwid, ok, reason, new_device FROM account_logins WHERE login = ? ORDER BY at DESC LIMIT ${n}`, [login]);
+      return rows.map((r) => ({ at: new Date(r.at), ip: r.ip, hwid: r.hwid, ok: !!r.ok, reason: r.reason || '', newDevice: !!r.new_device }));
+    },
+
+    // ---- сброс пароля через сайт
+    async putReset(r) { await q('INSERT INTO core_password_resets (token_hash, login, created_at, expires_at) VALUES (?,?,?,?)', [r.hash, r.login, r.createdAt, r.expiresAt]); },
+    async takeReset(hash, now) {
+      // условный UPDATE: токен гасится один раз, гонка двух запросов невозможна
+      const res = await q('UPDATE core_password_resets SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?', [now, hash, now]);
+      if (!res.affectedRows) return null;
+      const rows = await q('SELECT login FROM core_password_resets WHERE token_hash = ?', [hash]);
+      return rows[0] ? { login: rows[0].login } : null;
+    },
+    async peekReset(hash, now) {
+      const rows = await q('SELECT login FROM core_password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?', [hash, now]);
+      return rows[0] ? { login: rows[0].login } : null;
+    },
+    async deleteResets(login) { await q('DELETE FROM core_password_resets WHERE login = ?', [login]); },
+    async setPassword(login, passwordHash) {
+      const res = await q('UPDATE accounts SET `password` = ? WHERE login = ?', [passwordHash, login]);
+      return res.affectedRows > 0;
+    },
+    async revokeAllSessions(login, now) {
+      await q('UPDATE core_oauth_sessions SET revoked_at = COALESCE(revoked_at, ?) WHERE login = ?', [now, login]);
+      await q('DELETE FROM core_oauth_tokens WHERE login = ?', [login]);
+    },
+
     async purgeExpired(now) {
       await q('DELETE FROM core_oauth_codes WHERE expires_at <= ?', [now]);
       await q('DELETE FROM core_oauth_tokens WHERE expires_at <= ?', [now]);
+      await q('DELETE FROM core_password_resets WHERE expires_at <= ?', [new Date(now.getTime() - 24 * 3600 * 1000)]);
     },
   };
 

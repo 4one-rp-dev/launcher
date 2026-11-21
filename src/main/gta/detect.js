@@ -4,12 +4,13 @@ const path = require('path');
 const { execFile } = require('child_process');
 const config = require('../config');
 const { readFileVersion } = require('./pe-version');
+const { decodeConsole } = require('../console-text');
 
 const G = config.game;
 
 function defaultExec(file, args) {
   return new Promise((resolve) => {
-    execFile(file, args, { windowsHide: true, timeout: 8000 }, (err, stdout) => resolve(err ? '' : String(stdout)));
+    execFile(file, args, { windowsHide: true, timeout: 8000, encoding: 'buffer' }, (err, stdout) => resolve(err ? '' : decodeConsole(stdout)));
   });
 }
 
@@ -53,11 +54,17 @@ function inspectDir(dir, source, deps) {
     exe: hasLegacy ? legacyExe : enhExe,
     hasLegacy, hasEnhanced: hasEnh,
     version,
-    // Legacy нужной версии; если версию прочитать не удалось — считаем «неизвестной», не блокируем
-    isSupported: hasLegacy && (version === G.legacyVersion),
-    versionMismatch: hasLegacy && !!version && version !== G.legacyVersion,
+    // Legacy не ниже нужной версии (сервер пускает 1.0.3889 и новее); если версию прочитать не удалось — не блокируем
+    isSupported: hasLegacy && !!version && cmpVersion(version, G.legacyVersion) >= 0,
+    versionMismatch: hasLegacy && !!version && cmpVersion(version, G.legacyVersion) < 0,
     enhancedOnly: !hasLegacy && hasEnh,
   };
+}
+
+function cmpVersion(a, b) {
+  const pa = String(a).split('.').map((x) => parseInt(x, 10) || 0); const pb = String(b).split('.').map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d < 0 ? -1 : 1; }
+  return 0;
 }
 
 /** Поиск установленной GTA V: реестр Rockstar, Steam, Epic, типовые папки. Первый поддерживаемый побеждает. */

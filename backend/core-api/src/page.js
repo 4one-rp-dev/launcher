@@ -6,6 +6,8 @@ const MESSAGES = {
   invalid_credentials: 'Неверный логин или пароль.',
   rate_limited: 'Слишком много попыток. Подождите несколько минут и повторите.',
   tx_expired: 'Страница входа устарела. Вернитесь в лаунчер и нажмите «Войти» ещё раз.',
+  invalid_mfa_code: 'Неверный код. Проверьте, что время на телефоне точное, или введите резервный код.',
+  mfa_expired: 'Время на ввод кода вышло. Вернитесь в лаунчер или на сайт и войдите заново.',
 };
 
 const CSS = `
@@ -39,6 +41,22 @@ ${error ? `<div class="err" role="alert">${esc(MESSAGES[error] || 'Не удал
 </main></body></html>`;
 }
 
+/** Второй шаг входа, если у аккаунта включена 2FA: код из приложения или резервный код. */
+function mfaPage({ clientName, mtx, error }) {
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Вход в 4ONE RP</title><style>${CSS}</style></head><body><main>
+<h1>Код подтверждения</h1>
+<p>Введите 6 цифр из приложения-аутентификатора, чтобы продолжить в «${esc(clientName)}». Нет телефона под рукой — подойдёт резервный код.</p>
+${error ? `<div class="err" role="alert">${esc(MESSAGES[error] || 'Не удалось войти. Повторите позже.')}</div>` : ''}
+<form method="post" action="/oauth/authorize" autocomplete="off">
+<input type="hidden" name="mtx" value="${esc(mtx)}">
+<label for="c">Код из приложения или резервный код</label><input id="c" name="code" maxlength="12" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="123456 или ABCD-EF23" required autofocus>
+<button type="submit">Подтвердить</button>
+</form>
+<small>Код действует 30 секунд. Каждый резервный код срабатывает один раз.</small>
+</main></body></html>`;
+}
+
 function errorPage(message) {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Вход в 4ONE RP</title><style>${CSS}</style></head><body><main><h1>Не удалось открыть вход</h1><p>${esc(message)}</p></main></body></html>`;
@@ -52,4 +70,4 @@ function doneHtml(redirect) {
 <a href="${esc(redirect)}"><button type="button">Открыть лаунчер</button></a></main></body></html>`;
 }
 
-module.exports = { loginPage, errorPage, doneHtml, esc };
+module.exports = { loginPage, mfaPage, errorPage, doneHtml, esc };

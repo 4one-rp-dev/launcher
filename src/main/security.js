@@ -11,7 +11,26 @@ function isAllowedExternal(url) {
 }
 
 /** key — ключ из config.links или полный URL из данных сервера (новости) */
+/**
+ * Ссылки разделов (Discord, донат, правила…) можно задать на сервере без новой версии лаунчера:
+ * core_settings.flags = {"links": {"discord": "https://discord.gg/…"}}. Принимаем только https и только известные ключи.
+ */
+let dynamicLinks = {};
+function setLinks(obj) {
+  const out = {};
+  if (obj && typeof obj === 'object') {
+    for (const k of Object.keys(config.links)) {
+      const v = obj[k];
+      try { if (typeof v === 'string' && v.length < 512 && new URL(v).protocol === 'https:') out[k] = v; } catch (_) { /* не URL */ }
+    }
+  }
+  dynamicLinks = out;
+}
+/** Какие ссылки действительно настроены (сайт есть всегда) — интерфейс прячет остальные кнопки. */
+function configuredLinks() { return Object.assign({ site: config.links.site }, dynamicLinks); }
+
 function resolveExternal(key) {
+  if (Object.prototype.hasOwnProperty.call(dynamicLinks, key)) return dynamicLinks[key];
   if (Object.prototype.hasOwnProperty.call(config.links, key)) return config.links[key];
   return isAllowedExternal(key) ? key : null;
 }
@@ -27,4 +46,4 @@ function senderAllowed(event, win, rendererUrlPrefix) {
   return url.startsWith(rendererUrlPrefix);
 }
 
-module.exports = { isAllowedExternal, resolveExternal, CSP, senderAllowed };
+module.exports = { isAllowedExternal, resolveExternal, setLinks, configuredLinks, CSP, senderAllowed };

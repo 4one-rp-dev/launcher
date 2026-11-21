@@ -62,7 +62,7 @@ function world(opts = {}) {
   const auth = createAuth({ oauth, backend, vault, bus, log, openAuth: async (url) => { opened.push(url); return { ok: true }; }, deviceName: 'Test PC', now: opts.clock });
   authRef = auth;
   const settings = { get: () => ({ selectedServerId: '' }), set: async () => ({}) };
-  const data = createData({ backend, auth, settings, log });
+  const data = createData({ backend, auth, settings, log, probe: async (s) => s });
   const codes = createCodes({ backend, auth, log });
   const account = createAccount({ backend, auth });
   return { auth, store, events, opened, vault: () => vaultData, setVault: (v) => { vaultData = v; }, fetch, oauth, handler, config, backend, core, data, codes, account };

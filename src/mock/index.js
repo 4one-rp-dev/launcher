@@ -80,21 +80,21 @@ function createMock(opts) {
     ],
   };
   const profile = () => Object.assign({}, PROFILE, roleOf(S.alvl), { balance4c: S.balance });
-  const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending });
+  const authState = () => ({ authed: S.authed, profile: S.authed ? profile() : null, offline: S.offline, reason: '', pending: S.pending, guest: !S.authed && !!S.guest, mfa: !!S.mfaStep });
 
   // ---- настройки
-  const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, noBattleye: true, syncMods: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true };
+  const settingsDefaults = { gamePath: '', selectedServerId: 'main', closeAfterStart: false, minimizeToTray: true, autostart: false, autoUpdates: true, playMinutes: 2160, lastSeenNews: '', accent: 'violet', lang: 'ru', scale: 'auto', animations: true, toasts: true, newsBadge: true, afterStart: 'minimize', gamePriority: 'normal', startHidden: true, rememberRoute: true, lastRoute: 'home', notifyNews: true, notifyServer: true, dlLimit: '0' };
   let settings = Object.assign({}, settingsDefaults, store.get('settings', {}));
 
   // ---- игра
   const gtaOk = { dir: 'C:\\Program Files\\Rockstar Games\\Grand Theft Auto V', source: 'rockstar', version: '1.0.3889.0', exe: 'C:\\Program Files\\Rockstar Games\\Grand Theft Auto V\\GTA5.exe', isSupported: true, hasLegacy: true, hasEnhanced: false };
-  const G = { phase: 'ready', gta: gtaOk, client: { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }, progress: null, error: null, running: false };
+  const G = { layout: { root: 'D:\\4ONE RP', game: 'D:\\4ONE RP\\Game', data: 'D:\\4ONE RP\\Game\\data', installedDir: 'D:\\4ONE RP\\Game', inLayout: true }, found: [{ dir: gtaOk.dir, source: 'rockstar', version: '1.0.3889.0', supported: true }, { dir: 'D:\\SteamLibrary\\steamapps\\common\\Grand Theft Auto V', source: 'steam', version: '1.0.3889.0', supported: true }], phase: 'ready', gta: gtaOk, client: { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }, progress: null, error: null, running: false };
   const sc = {
     'not-installed': () => { G.phase = 'not-installed'; G.client = { installed: false, version: '', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; },
     update: () => { G.phase = 'needs-update'; G.client = { installed: true, version: '0.9.2', remoteVersion: '1.0.0', needsUpdate: true, updateBytes: 86 * MB }; },
     'no-gta': () => { G.phase = 'no-gta'; G.gta = null; G.client.installed = false; },
     enhanced: () => { G.phase = 'unsupported'; G.gta = Object.assign({}, gtaOk, { version: '', isSupported: false, hasLegacy: false, hasEnhanced: true, exe: gtaOk.dir + '\\GTA5_Enhanced.exe' }); G.error = { code: 'gta_unsupported', message: '' }; },
-    downloading: () => { G.phase = 'installing'; G.client = { installed: false, version: '', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; G.progress = { stage: 'client', file: 'FloVMP.asi', done: Math.round(TOTAL * 0.43), total: TOTAL, speed: 24.6 * MB, eta: 27, percent: 43 }; },
+    downloading: () => { G.phase = 'installing'; G.client = { installed: false, version: '', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; G.progress = { stage: 'client', file: '', done: Math.round(TOTAL * 0.43), total: TOTAL, speed: 24.6 * MB, eta: 27, percent: 43 }; },
     ingame: () => { G.phase = 'ingame'; G.running = true; },
   };
   if (scenario === 'ingame') sc.ingame(); else if (scenario === 'downloading') sc.downloading();
@@ -111,7 +111,7 @@ function createMock(opts) {
         if (cancelled) { clearInterval(timer); G.progress = null; G.phase = G.client.installed ? 'ready' : 'not-installed'; pub(); return resolve(false); }
         done += speed / 5 * (0.85 + Math.random() * 0.3);
         const p = Math.min(done, total);
-        G.progress = { stage: p < total * 0.06 ? 'scripthook' : 'client', file: p < total * 0.06 ? 'ScriptHookV' : 'FloVMP.asi', done: p, total, speed, eta: Math.round((total - p) / speed), percent: Math.floor(p / total * 100) };
+        G.progress = { stage: p < total * 0.4 ? 'kit' : 'client', file: '', done: p, total, speed, eta: Math.round((total - p) / speed), percent: Math.floor(p / total * 100) };
         pub();
         if (p >= total) { clearInterval(timer); G.progress = null; G.client = { installed: true, version: '1.0.0', remoteVersion: '1.0.0', needsUpdate: false, updateBytes: 0 }; G.phase = 'ready'; pub(); resolve(true); }
       }, 200);
@@ -127,9 +127,10 @@ function createMock(opts) {
     async install() { if (frozen) return ok(game.getState()); await simulateInstall(G.phase === 'needs-update' ? 86 * MB : TOTAL, false); return ok(game.getState()); },
     async verify() { if (frozen) return ok(game.getState()); await simulateInstall(220 * MB, true); return ok(game.getState()); },
     async cancel() { cancelled = true; return ok(); },
+    async relocate() { G.layout.inLayout = true; pub(); return ok(game.getState()); },
     async uninstall() { G.client.installed = false; G.phase = 'not-installed'; pub(); return ok(game.getState()); },
     async play() {
-      if (!S.authed) return fail('invalid_session');
+      if (!S.authed && !S.guest) return fail('invalid_session');
       if (G.phase !== 'ready') { const r = await simulateInstall(G.phase === 'needs-update' ? 86 * MB : TOTAL, false); if (!r) return fail('cancelled'); }
       G.phase = 'launching'; G.progress = null; pub(); await delay(1600);
       G.phase = 'ingame'; G.running = true; pub();
@@ -145,11 +146,31 @@ function createMock(opts) {
     /** Демо: «браузер» открывается и через секунду возвращает вход */
     async login() {
       S.pending = true; bus.emit('auth:changed', authState());
-      setTimeout(() => { if (!S.pending) return; S.pending = false; S.authed = true; S.offline = false; bus.emit('auth:changed', authState()); }, 900);
+      setTimeout(() => { if (!S.pending) return; S.pending = false; S.authed = true; S.guest = false; S.offline = false; bus.emit('auth:changed', authState()); }, 900);
       return ok(authState());
     },
     async cancel() { S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
-    async logout() { S.authed = false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
+    async logout() { S.authed = false; S.guest = false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
+    /** Демо: любой логин и пароль от 4 знаков; логин с «2fa» спросит код (верный — 123456 или резервный DEMO-CODE). */
+    async passwordLogin(login, password) {
+      await delay(500);
+      if (String(password).length < 4) return fail('invalid_credentials');
+      if (/2fa/i.test(login) || S.mfaOn) { S.mfaStep = true; bus.emit('auth:changed', authState()); return ok(authState()); }
+      S.authed = true; S.guest = false; S.offline = false; bus.emit('auth:changed', authState()); return ok(authState());
+    },
+    async register(f) {
+      await delay(600);
+      if (/^(admin|test)$/i.test(f.login)) return fail('login_taken');
+      S.authed = true; S.guest = false; S.offline = false; bus.emit('auth:changed', authState()); return ok(authState());
+    },
+    async submitMfa(code) {
+      await delay(400);
+      if (!S.mfaStep) return fail('mfa_expired');
+      if (code !== '123456' && code.toUpperCase().replace('-', '') !== 'DEMOCODE') return fail('invalid_mfa_code');
+      S.mfaStep = false; S.authed = true; S.guest = false; bus.emit('auth:changed', authState()); return ok(authState());
+    },
+    async cancelMfa() { S.mfaStep = false; bus.emit('auth:changed', authState()); return ok(authState()); },
+    async guest(on) { S.guest = on !== false; S.pending = false; bus.emit('auth:changed', authState()); return ok(authState()); },
   };
   const data = {
     async bootstrap() {
@@ -179,7 +200,36 @@ function createMock(opts) {
     async history() { return ok(S.history.slice()); },
   };
   const account = {
-    async security() { await delay(200); return ok({ emailVerified: true, twoFactor: false, passwordSet: true, links: [
+    async mfaStatus() { await delay(150); return ok({ enabled: !!S.mfaOn, pending: !!S.mfaPending, backupLeft: S.mfaOn ? 10 : 0, enabledAt: S.mfaOn ? new Date().toISOString() : null }); },
+    async mfaSetup() {
+      await delay(300); if (S.mfaOn) return fail('mfa_already_enabled'); S.mfaPending = true;
+      const otpauth = 'otpauth://totp/4ONE%20RP:dante?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=4ONE%20RP&algorithm=SHA1&digits=6&period=30';
+      let qr = ''; try { qr = await require('qrcode').toDataURL(otpauth, { margin: 1, width: 240 }); } catch (_) { /* в браузерном предпросмотре qrcode нет */ }
+      return ok({ secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', otpauth, qr });
+    },
+    async mfaEnable(code) { await delay(300); if (!S.mfaPending) return fail('mfa_not_pending'); if (code !== '123456') return fail('invalid_mfa_code'); S.mfaOn = true; S.mfaPending = false; return ok({ enabled: true, backupCodes: ['K7QM-4XPA', 'R2DW-9HTZ', 'BN5C-7YUE', 'P3LS-8GVK', 'W6TF-2QMN', 'H9XJ-5RAD', 'C4EV-6KPW', 'Y8NB-3STL', 'G5ZH-7MQR', 'U2AK-9DFX'] }); },
+    async mfaDisable(code) { await delay(300); if (!S.mfaOn) return fail('mfa_not_enabled'); if (code !== '123456') return fail('invalid_mfa_code'); S.mfaOn = false; return ok({ enabled: false }); },
+    async devices() {
+      await delay(250);
+      return ok([
+        { id: 'A1B2C3D4E5', firstAt: ago(60 * 24 * 40), lastAt: ago(0), logins: 128, trusted: true, ip: '185.23.14.x' },
+        { id: 'F6A7B8C9D0', firstAt: ago(60 * 24 * 2), lastAt: ago(60 * 24), logins: 3, trusted: false, ip: '94.25.77.x' },
+      ]);
+    },
+    // как Core API: включить можно сразу; отключить — с паролем и кодом 2FA, сработает через 24 часа
+    async setProtection(enabled, password, code) {
+      await delay(300);
+      S.prot = S.prot || { enabled: true, offAt: null };
+      if (enabled) { S.prot = { enabled: true, offAt: null }; return ok(S.prot); }
+      if (!password) return fail('password_required');
+      if (password === 'wrong') return fail('invalid_credentials');
+      if (S.mfaOn && !code) return fail('mfa_required');
+      if (S.mfaOn && code !== '123456') return fail('invalid_mfa_code');
+      if (!S.prot.offAt) S.prot = { enabled: true, offAt: new Date(Date.now() + 24 * 3600e3).toISOString() };
+      return ok(S.prot);
+    },
+    async mfaBackup(code) { await delay(300); if (code !== '123456') return fail('invalid_mfa_code'); return ok({ backupCodes: ['M3QX-7PKA', 'T8RW-2HDZ', 'BV5C-9YNE', 'Q4LS-6GXK', 'W7TF-3ZMN', 'J9XA-5RCD', 'C2EV-8KPU', 'Y6NB-4STH', 'G3ZH-7WQR', 'U5AK-2DFL'] }); },
+    async security() { await delay(200); return ok({ emailVerified: true, twoFactor: !!S.mfaOn, passwordSet: true, protection: Object.assign({ tradeBanUntil: null, tradeBanReason: '' }, S.prot || { enabled: true, offAt: null }), links: [
       { provider: 'discord', linked: true, label: 'dante#2026' }, { provider: 'email', linked: true, label: PROFILE.email },
       { provider: 'google', linked: false, label: '' }, { provider: 'telegram', linked: false, label: '' }, { provider: 'steam', linked: false, label: '' }, { provider: 'vk', linked: false, label: '' }] }); },
     async sessions() { await delay(250); return ok(S.sessions.map((x) => Object.assign({}, x))); },
@@ -211,13 +261,23 @@ function createMock(opts) {
     async openExternal() { bus.emit('toast', { kind: 'info', text: 'Откроется в браузере' }); return ok(); },
     async openPath() { bus.emit('toast', { kind: 'info', text: 'Откроется папка' }); return ok(); },
     async copyDiagnostics() { return ok({ text: '4ONE Launcher 1.0.0 (демо)' }); },
+    async cacheInfo() { return ok({ dir: 'C:\\Users\\Player\\AppData\\Local\\4ONE Launcher\\client-kit', bytes: 382 * MB }); },
+    async clearCache() { return ok({ bytes: 0 }); },
+    async copyText() { return ok(); },
   };
   const win = { minimize() {}, toggleMaximize() { return false; }, close() {} };
   const updater = {
     async check() { return ok({ state: 'none' }); }, async download() { return ok(); }, async install() { return ok(); },
   };
 
-  return { bus, services: { app, win, auth, data, game, codes, account, settings: settingsSvc, updater, log: { error() {}, warn() {}, info() {} } }, PROFILE, SERVERS, NEWS };
+  const PREFS = { cfg: { drawDistance: 120, fpsLimit: -1, cefGpu: true, micDevice: 0, outDevice: 0, micVolume: 100, voiceVolume: 100, netgraph: false, voiceKey: 0, radioKey: 0, chatKey: 0, consoleKey: 0, voiceMode: 'key', voiceThreshold: 35, streamerMode: false, discord: true, voiceEnabled: true, voiceAutoGain: true, voiceNoise: true, accent: '', alerts: '', consoleSkin: '', keepDays: null, exists: true },
+    gta: { exists: true, windowMode: 'borderless', vsync: false, resolution: '1920×1080' }, devices: { inputs: ['Микрофон (Realtek High Definition Audio)', 'Headset Microphone (USB)'], outputs: ['Динамики (Realtek High Definition Audio)', 'Наушники (USB Headset)'] }, running: false, file: 'C:\\Users\\Player\\AppData\\Local\\FloVMP\\player.cfg' };
+  const prefs = {
+    async get() { return ok(JSON.parse(JSON.stringify(PREFS))); },
+    async set(p) { for (const [k, v] of Object.entries(p)) { if (k === 'windowMode' || k === 'vsync') PREFS.gta[k] = v; else PREFS.cfg[k] = v; } return ok(JSON.parse(JSON.stringify(PREFS))); },
+    async reset(g) { const d = { keys: { voiceKey: 0, radioKey: 0, chatKey: 0, consoleKey: 0 }, look: { accent: '', alerts: '', consoleSkin: '' } }[g] || {}; Object.assign(PREFS.cfg, d); return ok(JSON.parse(JSON.stringify(PREFS))); },
+  };
+  return { bus, services: { app, win, auth, data, game, codes, account, settings: settingsSvc, updater, prefs, log: { error() {}, warn() {}, info() {} } }, PROFILE, SERVERS, NEWS };
 }
 
 module.exports = { createMock, createBus };

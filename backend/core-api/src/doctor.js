@@ -13,6 +13,7 @@ async function main() {
   line(Object.keys(config.clients).length > 0, `OAuth-клиенты: ${Object.keys(config.clients).join(', ')}`);
   line(true, `CORS-источники сайта: ${config.corsOrigins.join(', ') || '— (сайт без запросов из браузера)'}`);
   line(config.internalToken.length >= 16 || !config.internalToken, config.internalToken ? 'CORE_INTERNAL_TOKEN задан' : 'CORE_INTERNAL_TOKEN не задан: онлайн серверов обновлять нечем');
+  line(true, `новый аккаунт: ${config.signup.redbucks} 4Coin, VIP ${config.signup.vipLvl}${config.signup.vipLvl ? ` на ${config.signup.vipDays} дн.` : ''}`);
 
   let conn;
   try {
@@ -21,13 +22,21 @@ async function main() {
     const [tables] = await conn.query('SHOW TABLES');
     const have = new Set(tables.map((r) => Object.values(r)[0]));
     for (const t of ['accounts', 'characters', 'banned']) line(have.has(t), `таблица игры ${t}`);
-    for (const t of ['core_oauth_codes', 'core_oauth_sessions', 'core_oauth_tokens', 'core_servers', 'core_news', 'core_settings', 'core_promos', 'core_promo_redeems', 'core_wallet_tx', 'core_login_events']) line(have.has(t), `таблица ${t}${have.has(t) ? '' : ' — выполните npm run migrate'}`);
+    for (const t of ['core_oauth_codes', 'core_oauth_sessions', 'core_oauth_tokens', 'core_servers', 'core_news', 'core_settings', 'core_promos', 'core_promo_redeems', 'core_wallet_tx', 'core_login_events', 'core_mfa', 'core_mfa_backup']) line(have.has(t), `таблица ${t}${have.has(t) ? '' : ' — выполните npm run migrate'}`);
     if (have.has('accounts')) {
       const [col] = await conn.query("SHOW COLUMNS FROM accounts LIKE 'alvl'");
       line(col.length > 0, 'колонка accounts.alvl (уровень администрации)' + (col.length ? '' : ' — нет: npm run migrate или gamemod/database/migrations/009'));
       const [[n]] = await conn.query('SELECT COUNT(*) AS n FROM accounts');
       line(true, `аккаунтов в игре: ${n.n}`);
       if (col.length) { const [[a]] = await conn.query('SELECT COUNT(*) AS n FROM accounts WHERE alvl > 0'); line(true, `администраторов (alvl > 0): ${a.n}`); }
+      // регистрация (sql/004_signup.sql): INSERT на accounts — на таблицу, на всю базу или глобально
+      const [[me]] = await conn.query("SELECT CONCAT('''', SUBSTRING_INDEX(CURRENT_USER(), '@', 1), '''@''', SUBSTRING_INDEX(CURRENT_USER(), '@', -1), '''') AS g");
+      const [ins] = await conn.query(
+        "SELECT 1 AS x FROM information_schema.TABLE_PRIVILEGES WHERE GRANTEE = ? AND PRIVILEGE_TYPE = 'INSERT' AND TABLE_SCHEMA = ? AND TABLE_NAME = 'accounts' "
+        + "UNION SELECT 1 FROM information_schema.SCHEMA_PRIVILEGES WHERE GRANTEE = ? AND PRIVILEGE_TYPE = 'INSERT' AND TABLE_SCHEMA = ? "
+        + "UNION SELECT 1 FROM information_schema.USER_PRIVILEGES WHERE GRANTEE = ? AND PRIVILEGE_TYPE = 'INSERT'",
+        [me.g, config.db.name, me.g, config.db.name, me.g]);
+      line(ins.length > 0, 'право INSERT на accounts (регистрация)' + (ins.length ? '' : ` — нет: GRANT INSERT ON ${config.db.name}.accounts TO ${me.g}; (sql/004_signup.sql)`));
     }
     if (have.has('core_servers')) { const [[s]] = await conn.query('SELECT COUNT(*) AS n FROM core_servers WHERE published = 1'); line(s.n > 0, `серверов в каталоге: ${s.n}${s.n ? '' : ' — добавьте (sql/seed.example.sql)'}`); }
   } catch (e) { line(false, `подключение к БД: ${e.code || e.message}`); }

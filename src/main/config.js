@@ -20,10 +20,10 @@ module.exports = {
 
   /**
    * Единый API 4ONE (backend/core-api): OAuth для лаунчера и сайта, профиль и роль из игровой БД.
-   * TODO(core-url): адрес боевого API (сейчас предположение). Для разработки: L4_CORE_URL=http://127.0.0.1:8787
+   * Адрес API: пока бесплатное имя sslip.io (указывает на VDS игры, сертификат Let's Encrypt), когда появится DNS api.4onerp.com — сменить здесь и выпустить новую версию. Для разработки: L4_CORE_URL=http://127.0.0.1:8787
    */
   core: {
-    url: (process.env.L4_CORE_URL || 'https://api.4onerp.com').replace(/\/+$/, ''),
+    url: (process.env.L4_CORE_URL || 'https://188-130-132-47.sslip.io').replace(/\/+$/, ''),
     clientId: '4one-launcher',
     redirectUri: 'gta4one://auth/callback',
     timeoutMs: 12000,
@@ -38,7 +38,8 @@ module.exports = {
   },
 
   updates: {
-    feed: `${CDN}/launcher/`,                  // latest.yml + Setup.exe (electron-updater, generic)
+    // релизы лаунчера (v*) на GitHub: latest.yml + Setup.exe; релиз с комплектом клиента (client-*) помечен prerelease и не мешает
+    github: { owner: '4one-rp-dev', repo: 'launcher' },
   },
 
   game: {
@@ -47,19 +48,16 @@ module.exports = {
     epicAppId: '9d2d0eb64d5c44529cece33fe2a46482',
     exe: 'GTA5.exe',
     enhancedExe: 'GTA5_Enhanced.exe',
-    asi: 'FloVMP.asi',
-    /** ScriptHookV (нужен ASI-загрузчик). Хэш архива закреплён, как в старом лаунчере. */
-    scriptHook: {
-      url: 'http://www.dev-c.com/files/ScriptHookV_3889.0_1158.13.zip',
-      referer: 'http://www.dev-c.com/gtav/scripthookv/',
-      zipSha256: 'B64C97C3353906F14621E7E9511E4AEC2A7D436ECC21ED124D3816585E2E6188',
-      files: ['ScriptHookV.dll', 'dinput8.dll'],
-    },
     /** Запуск через платформы */
     steamUri: 'steam://rungameid/271590',
     epicUri: 'com.epicgames.launcher://apps/9d2d0eb64d5c44529cece33fe2a46482?action=launch&silent=true',
-    /** Серверный адрес по умолчанию, если в bootstrap нет серверов (dev) */
-    fallbackServer: { id: 'dev', name: '4ONE RP', tag: 'DEV', address: '127.0.0.1:22005', max: 500 },
+    /** Сервер по умолчанию, если Core API недоступен и кэша нет: живой статус всё равно берётся с самого сервера */
+    fallbackServer: { id: 'main', name: '4ONE RP', tag: 'ЗБТ', address: '188.130.132.47:7788', max: 1000 },
+    /** Сколько ждать появления GTA5.exe после команды запуска (магазины бывают медленными) */
+    launchWaitMs: 180000,
+    /** Сервер платформы: вход на порту +10, раздача модов и /info (онлайн) на +20 от адреса из bootstrap */
+    infoPortOffset: 20,
+    gatePortOffset: 10,
   },
 
   /** Куда разрешено уходить по внешним ссылкам из интерфейса (ключ -> URL) */
@@ -71,6 +69,7 @@ module.exports = {
     forum: 'https://www.4onerp.com/',            // TODO(links): «Форум»
     donate: 'https://www.4onerp.com/',           // TODO(links): «Донат»
     support: 'https://www.4onerp.com/',          // TODO(links): «Поддержка»
+    resetPassword: 'https://www.4onerp.com/reset-password', // страница сброса пароля на сайте (Core API: POST /v1/password/reset)
     discord: 'https://www.4onerp.com/',          // TODO(links): инвайт Discord
   },
   /** Хосты, на которые openExternal разрешён для http(s)-ссылок из данных сервера (новости) */

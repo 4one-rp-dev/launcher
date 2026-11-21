@@ -1,78 +1,108 @@
 'use strict';
-const fs = require('fs');
-const path = require('path');
 const config = require('./config');
-const { fail, ok } = require('../core/contract');
+const { fail, ok, ERRORS, message } = require('../core/contract');
 const { detectGta, inspectDir } = require('./gta/detect');
-const { grantModify } = require('./client/elevate');
+const { stageOf } = require('./client/platform');
+const path = require('path');
+const { sameDir } = require('./layout');
 
 /**
  * Игровой контроллер: единственный источник правды о том, что показывать на кнопке «Играть».
  * phase: init | no-gta | unsupported | not-installed | needs-update | ready | checking | installing |
  *        verifying | launching | ingame | error
+ *
+ * Установку, обновление клиента, моды сервера и вход ведёт платформа (client/platform.js, тихий установщик);
+ * комплект с установщиком лаунчер скачивает сам (client/kit.js). Игрок ничего не ставит руками.
  */
+/** Имя для подключения: латиница, цифры, «_», до 24 знаков (кириллица из имени пользователя Windows отбрасывается). */
+function cleanName(s) { return String(s || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 24); }
+
 function createGame(deps) {
-  const { settings, data, auth, installer, runner, bus, log, dialog } = deps;
+  const { settings, data, auth, platform, kit, runner, bus, log, dialog } = deps;
   const detectFn = deps.detect || detectGta;
 
   const st = {
-    phase: 'init', gta: null, client: { installed: false, version: '', remoteVersion: '', needsUpdate: false, updateBytes: 0 },
+    phase: 'init', gta: null, found: [], layout: null, client: { installed: false, version: '', remoteVersion: '', needsUpdate: false, updateBytes: 0 },
     progress: null, error: null, running: false,
   };
-  let abort = null; let busy = false; let sessionStart = 0;
+  let abort = null; let busy = false; let sessionStart = 0; let lastExe = null;
 
   function publish() { bus.emit('game:state', getState()); }
   function getState() { return JSON.parse(JSON.stringify(st)); }
   function setPhase(p, extra) { st.phase = p; if (extra) Object.assign(st, extra); publish(); }
   function setError(code, detail) {
-    st.error = { code, message: require('../core/contract').message(code), detail: detail || '' };
+    st.error = { code, message: message(code), detail: detail || '' };
     st.phase = 'error'; st.progress = null; publish();
+  }
+
+  /** Установщик платформы: уже стоящий на ПК или из комплекта лаунчера. */
+  async function findExe() {
+    const inst = await platform.installedExe();
+    if (inst) return (lastExe = inst);
+    const k = kit.current();
+    return (lastExe = k ? k.exe : null);
   }
 
   async function refresh() {
     const manual = settings.get().gamePath;
     const d = await detectFn({ manualPath: manual });
+    st.found = (d.all || []).map((x) => ({ dir: x.dir, source: x.source, version: x.version, supported: !!x.isSupported, enhancedOnly: !!x.enhancedOnly }));
     st.gta = d.best ? { dir: d.best.dir, source: d.best.source, version: d.best.version, exe: d.best.exe, isSupported: d.best.isSupported, hasLegacy: d.best.hasLegacy, hasEnhanced: d.best.hasEnhanced } : null;
     st.error = null;
     if (!d.best) { st.client.installed = false; return setPhase('no-gta'); }
-    if (d.best.enhancedOnly) return setPhase('unsupported', { error: { code: 'gta_unsupported', message: require('../core/contract').message('gta_unsupported') } });
-    if (d.best.versionMismatch) return setPhase('unsupported', { error: { code: 'gta_wrong_version', message: require('../core/contract').message('gta_wrong_version') } });
+    if (d.best.enhancedOnly) return setPhase('unsupported', { error: { code: 'gta_unsupported', message: message('gta_unsupported') } });
+    if (d.best.versionMismatch) return setPhase('unsupported', { error: { code: 'gta_wrong_version', message: message('gta_wrong_version') } });
 
-    const s = installer.status(d.best.dir);
-    st.client.installed = s.installed; st.client.version = s.version;
     st.client.needsUpdate = false; st.client.updateBytes = 0; st.client.remoteVersion = '';
-    if (!s.installed) return setPhase('not-installed');
-    // сравнение с удалённым манифестом (маленький запрос); без сети считаем клиент актуальным
-    try {
-      const info = await installer.remoteInfo(config.cdn.clientBase, { allowNames: [config.game.asi] });
-      st.client.remoteVersion = info.version;
-      if (info.digest && s.digest && info.digest !== s.digest) { st.client.needsUpdate = true; st.client.updateBytes = info.totalBytes; return setPhase('needs-update'); }
-    } catch (e) { log.warn('game', `проверка клиента: ${e.code || e.message}`); }
-    return setPhase('ready');
+    st.client.installed = false; st.client.version = '';
+    const exe = await findExe();
+    const L = deps.layout;
+    if (L) {
+      const inst = await platform.installedExe();
+      st.layout = { root: L.root, game: L.game, data: L.data, installedDir: inst ? path.dirname(inst) : '', inLayout: !inst || sameDir(path.dirname(inst), L.game) };
+    }
+    if (exe) {
+      try {
+        const s = await platform.status(exe);
+        st.client.installed = !!s.installed; st.client.version = s.clientVersion || '';
+      } catch (e) { log.warn('game', `состояние клиента: ${e.message}`); }
+    }
+    // обновление клиента выполняет сам вход (перед запуском игры), отдельного «needs-update» нет
+    return setPhase(st.client.installed ? 'ready' : 'not-installed');
   }
 
-  function progress(stage) {
-    let last = 0;
+  /** Ход работы -> progress для интерфейса (скорость считаем сами: платформа отдаёт только байты). */
+  function progressSink() {
+    let lastT = 0; let lastDone = 0; let speed = 0;
     return (p) => {
-      const now = Date.now(); if (now - last < 120) return; last = now;
-      const percent = p.total ? Math.min(100, Math.floor((p.done / p.total) * 100)) : 0;
-      const eta = p.speed > 0 && p.total ? Math.max(0, Math.round((p.total - p.done) / p.speed)) : 0;
-      st.progress = { stage, file: p.file || '', done: p.done, total: p.total, speed: Math.round(p.speed || 0), eta, percent };
+      const now = Date.now();
+      const done = Number(p.done) || 0; const total = Number(p.total) || 0;
+      if (p.speed != null) speed = p.speed;
+      else if (lastT && done >= lastDone && now > lastT) { const inst = ((done - lastDone) / (now - lastT)) * 1000; speed = speed ? speed * 0.7 + inst * 0.3 : inst; }
+      lastT = now; lastDone = done;
+      const percent = p.percent != null ? Math.min(100, Math.max(0, Math.floor(p.percent))) : (total ? Math.min(100, Math.floor((done / total) * 100)) : 0);
+      const eta = speed > 0 && total ? Math.max(0, Math.round((total - done) / speed)) : 0;
+      st.progress = { stage: p.stage || 'client', file: p.file || p.detail || '', done, total, speed: Math.round(speed), eta, percent };
       publish();
     };
   }
+  const fromPlatform = (sink) => (s) => sink({ stage: stageOf(s.stage), detail: s.detail, done: s.done, total: s.total, percent: s.percent });
 
-  /** Установка/обновление/проверка клиента. verify=true — пересчитать хэши. */
-  async function runSync(verify) {
-    const dir = st.gta.dir; const sig = abort.signal;
-    setPhase(verify ? 'verifying' : 'installing', { error: null, progress: { stage: 'scripthook', file: '', done: 0, total: 0, speed: 0, eta: 0, percent: 0 } });
-    if (!installer.canWrite(dir)) {
-      const granted = await grantModify(dir);
-      if (!granted || !installer.canWrite(dir)) throw Object.assign(new Error('no write'), { code: 'no_write_access' });
+  /** Клиент установлен? Если нет — получить комплект и поставить. Возвращает путь к установщику платформы. */
+  async function ensureClient(sig, sink) {
+    let exe = await findExe();
+    let ready = false;
+    if (exe) { try { ready = !!(await platform.status(exe)).installed; } catch (_) { ready = false; } }
+    if (ready) return exe;
+    if (!exe || kit.needed(data.clientInfo(), await platform.installedExe())) {
+      const k = await kit.ensure(data.clientInfo(), { signal: sig, onProgress: sink });
+      exe = k.exe; lastExe = exe;
     }
-    await installer.installScriptHook(dir, { signal: sig, onProgress: progress('scripthook') });
-    await installer.installClientFiles(dir, { verify, signal: sig, onProgress: progress('client') });
-    installer.patchCommandLine(dir, { noBattleye: settings.get().noBattleye });
+    // первая установка — сразу в папку 4ONE RP (как у RMRP); уже стоящий в другом месте клиент не двигаем без спроса
+    const L = deps.layout; const inst = await platform.installedExe();
+    const dirs = L && !inst ? { installDir: L.game, dataDir: L.data } : {};
+    await platform.install(exe, Object.assign({ gtaDir: st.gta.dir, signal: sig, onProgress: fromPlatform(sink) }, dirs));
+    return (await platform.installedExe()) || exe;
   }
 
   async function guarded(fn) {
@@ -80,9 +110,9 @@ function createGame(deps) {
     busy = true; abort = new AbortController();
     try { return await fn(); }
     catch (e) {
-      const code = e && e.code && typeof e.code === 'string' && require('../core/contract').ERRORS[e.code] ? e.code : (e && e.code === 'ENOSPC' ? 'disk_full' : (e && (e.code === 'EPERM' || e.code === 'EACCES') ? 'no_write_access' : 'unknown'));
+      const code = e && e.code && typeof e.code === 'string' && ERRORS[e.code] ? e.code : (e && e.code === 'ENOSPC' ? 'disk_full' : (e && (e.code === 'EPERM' || e.code === 'EACCES') ? 'no_write_access' : 'unknown'));
       if (code === 'cancelled') { st.progress = null; await refresh(); return fail('cancelled'); }
-      log.error('game', `${code}: ${e && e.message}`);
+      log.error('game', `${code}${e && e.flv ? ' ' + e.flv : ''}: ${e && e.message}`);
       setError(code, e && e.message);
       return fail(code);
     } finally { busy = false; abort = null; }
@@ -98,6 +128,8 @@ function createGame(deps) {
     await refresh();
     bus.emit('game:exited', {});
   }
+
+  const progress0 = (stage) => ({ stage, file: '', done: 0, total: 0, speed: 0, eta: 0, percent: 0 });
 
   return {
     getState,
@@ -120,46 +152,76 @@ function createGame(deps) {
 
     install: () => guarded(async () => {
       if (!st.gta) return fail('gta_not_found');
-      await runSync(false); await refresh(); bus.emit('toast', { kind: 'ok', text: 'Клиент установлен' }); return ok(getState());
+      setPhase('installing', { error: null, progress: progress0('kit') });
+      await ensureClient(abort.signal, progressSink());
+      await refresh(); bus.emit('toast', { kind: 'ok', text: 'Клиент установлен' }); return ok(getState());
     }),
+    /** «Проверить файлы»: платформа сверяет клиент и чинит его; без клиента — обычная установка. */
     verify: () => guarded(async () => {
       if (!st.gta) return fail('gta_not_found');
-      await runSync(true); await refresh(); bus.emit('toast', { kind: 'ok', text: 'Файлы проверены' }); return ok(getState());
+      setPhase('verifying', { error: null, progress: progress0('check') });
+      const sink = progressSink();
+      const exe = await findExe();
+      if (exe && st.client.installed) await platform.repair(exe, { gtaDir: st.gta.dir, signal: abort.signal, onProgress: fromPlatform(sink) });
+      else await ensureClient(abort.signal, sink);
+      await refresh(); bus.emit('toast', { kind: 'ok', text: 'Файлы проверены' }); return ok(getState());
     }),
     cancel: async () => { if (abort) abort.abort(); return ok(); },
+    /** Перенести клиент и данные в папку 4ONE RP (Game и Game\data). Платформа переносит данные и оставляет junction. */
+    relocate: () => guarded(async () => {
+      const L = deps.layout; if (!L) return fail('bad_request');
+      if (!st.gta) return fail('gta_not_found');
+      if (await runner.isRunning(config.game.exe)) return fail('game_running');
+      setPhase('installing', { error: null, progress: progress0('client') });
+      let exe = await findExe();
+      if (!exe) { const k = await kit.ensure(data.clientInfo(), { signal: abort.signal, onProgress: progressSink() }); exe = k.exe; }
+      await platform.install(exe, { gtaDir: st.gta.dir, installDir: L.game, dataDir: L.data, signal: abort.signal, onProgress: fromPlatform(progressSink()) });
+      await refresh(); bus.emit('toast', { kind: 'ok', text: 'Клиент перенесён в папку 4ONE RP' }); return ok(getState());
+    }),
     uninstall: () => guarded(async () => {
       if (!st.gta) return fail('gta_not_found');
       if (await runner.isRunning(config.game.exe)) return fail('game_running');
-      installer.uninstall(st.gta.dir); await refresh(); return ok(getState());
+      const exe = await findExe();
+      if (exe) await platform.uninstall(exe, { gtaDir: st.gta.dir, signal: abort.signal });
+      await refresh(); return ok(getState());
     }),
 
-    /** Играть: при необходимости ставит/обновляет клиент, затем запускает игру и подключает к выбранному серверу */
+    /** Играть: при необходимости ставит клиент, затем платформа обновляет его и моды, запускает игру и подключает к серверу */
     play: () => guarded(async () => {
-      if (!auth.state().authed) return fail('invalid_session');
+      const a = auth.state();
+      if (!a.authed && !a.guest) return fail('invalid_session');
       if (!st.gta) return fail('gta_not_found');
       if (st.phase === 'unsupported') return fail(st.error && st.error.code || 'gta_unsupported');
       const server = data.selected();
       if (!server || !server.address) return fail('server_offline');
       if (await runner.isRunning(config.game.exe)) return fail('game_running');
 
-      if (st.phase !== 'ready') { await runSync(false); }
-      setPhase('launching', { progress: null, error: null });
+      const sink = progressSink();
+      let exe;
+      if (st.phase !== 'ready') { setPhase('installing', { error: null, progress: progress0('kit') }); exe = await ensureClient(abort.signal, sink); }
+      else exe = (await findExe());
+      if (!exe) throw Object.assign(new Error('нет установщика клиента'), { code: 'client_kit_missing' });
+      setPhase('launching', { progress: progress0('check'), error: null });
 
-      const profile = auth.state().profile || {};
-      installer.writeConnect(st.gta.dir, { address: server.address, name: profile.gameName || profile.nickname || profile.username || 'Player' });
-      installer.patchCommandLine(st.gta.dir, { noBattleye: settings.get().noBattleye });
-      const args = settings.get().noBattleye ? ['-nobattleye'] : [];
-      await runner.launch(st.gta, args);
-      const appeared = await runner.waitAppear(config.game.exe, 120000, abort.signal);
-      if (!appeared) { throw Object.assign(new Error('GTA5.exe не появился'), { code: 'launch_failed' }); }
+      // имя на экране загрузки; игровой аккаунт выбирается уже в игре (вход или регистрация)
+      const profile = a.profile || {};
+      const nick = cleanName(profile.gameName || profile.nickname || profile.username || deps.guestName || '') || 'Player';
+      await platform.connect(exe, server.address, nick, { gtaDir: st.gta.dir, signal: abort.signal, onProgress: fromPlatform(sink) });
+      // Steam/Epic/Rockstar Launcher могут запускать игру долго (вход, обновление лаунчера магазина)
+      const appeared = await runner.waitAppear(config.game.exe, config.game.launchWaitMs || 180000, abort.signal);
+      if (!appeared) throw Object.assign(new Error('GTA5.exe не появился'), { code: 'launch_failed' });
+      st.progress = null;
 
       const s = settings.get();
-      if (s.closeAfterStart) bus.emit('quit-after-start', {});
-      else if (s.minimizeToTray) bus.emit('minimize-to-tray', {});
+      if (s.gamePriority && s.gamePriority !== 'normal' && runner.setPriority) runner.setPriority(config.game.exe, s.gamePriority).catch(() => {});
+      const after = s.afterStart || (s.closeAfterStart ? 'close' : 'minimize');
+      if (after === 'close') bus.emit('quit-after-start', {});
+      else if (after === 'tray') bus.emit('minimize-to-tray', {});
+      else if (after === 'minimize') bus.emit('minimize-window', {});
       watch().catch((e) => log.error('game', `watch: ${e.message}`));
       return ok(getState());
     }),
   };
 }
 
-module.exports = { createGame };
+module.exports = { createGame, cleanName };

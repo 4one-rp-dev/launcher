@@ -133,6 +133,8 @@
 .modal-root.out .mdl{animation:mout var(--d-out) ease-in both}
 .mdl .mb{padding:22px 24px;color:var(--t2);font-size:14px;line-height:1.55}
 .mdl .mb b{color:var(--t1)}
+.mdl .mb p + p{margin-top:10px}
+.mdl .mb .mut{color:var(--t3);font-size:13px}
 .mdl .mf{display:flex;justify-content:flex-end;gap:10px;padding:0 24px 22px}
 @keyframes mfade{from{opacity:0}}
 @keyframes mfadeout{to{opacity:0}}

@@ -10,7 +10,9 @@ const files = [];
 const CY = /[А-Яа-яЁё]/;
 const T_RE = /\bt\('((?:[^'\\\n]|\\.)*)'/g;
 
-const loadEN = () => import(path.join(R, 'js', 'i18n-en.js')).then((m) => m.EN);
+// import() принимает только file:// URL: на Windows путь «C:\…» читается как схема «c:»
+const esm = (...p) => import(require('url').pathToFileURL(path.join(R, ...p)).href);
+const loadEN = () => esm('js', 'i18n-en.js').then((m) => m.EN);
 
 test('i18n: у каждого t(…) в рендерере есть английский перевод', async () => {
   const EN = await loadEN(); const miss = [];
@@ -44,7 +46,7 @@ test('i18n: каждая русская строка-литерал в ренд�
   const EN = await loadEN(); const left = [];
   for (const f of files) {
     if (f.endsWith('codefmt.js')) continue; // карта раскладки, не текст интерфейса
-    fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+    fs.readFileSync(f, 'utf8').split(/\r?\n/).forEach((line, i) => { // CRLF на Windows ломал отсечение «// комментария»
       const s = line.trim(); if (s.startsWith('//') || s.startsWith('/*') || s.startsWith('*')) return;
       const l = line.replace(/\s\/\/\s.*$/, '');
       for (const m of l.matchAll(/'((?:[^'\\\n]|\\.)*)'/g)) { const k = m[1].replace(/\\'/g, "'"); if (CY.test(k) && !(k in EN)) left.push(path.basename(f) + ':' + (i + 1) + ' ' + k.slice(0, 60)); }
@@ -57,7 +59,7 @@ test('i18n: каждая русская строка-литерал в ренд�
 });
 
 test('codefmt: латиница, цифры, лимит; кириллица → клавиша', async () => {
-  const { cleanCode, groupLogin } = await import(path.join(R, 'js', 'codefmt.js'));
+  const { cleanCode, groupLogin } = await esm('js', 'codefmt.js');
   assert.strictEqual(cleanCode('kt7m-4xpq', { max: 8 }).text, 'KT7M4XPQ');
   assert.strictEqual(cleanCode('Привет, как дела? Это очень длинный текст', { max: 8 }).dropped, true);
   assert.strictEqual(cleanCode('привет', { max: 8, keys: true }).text, 'GHBDTN');

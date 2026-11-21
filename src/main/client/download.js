@@ -54,6 +54,7 @@ async function pipeToFile(res, part, dest, have, hash, o) {
   const { size, sha256, signal, onBytes } = o;
   const out = fs.createWriteStream(part, { flags: have ? 'a' : 'w' });
   let written = have;
+  const t0 = Date.now(); let got = 0; // для ограничения скорости (o.maxBps() — читается на ходу, настройку можно менять во время загрузки)
   try {
     const body = Readable.fromWeb(res.body);
     for await (const chunk of body) {
@@ -61,6 +62,9 @@ async function pipeToFile(res, part, dest, have, hash, o) {
       hash.update(chunk); written += chunk.length;
       if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
       if (onBytes) onBytes(chunk.length);
+      got += chunk.length;
+      const lim = o.maxBps ? o.maxBps() : 0;
+      if (lim > 0) { const ahead = (got / lim) * 1000 - (Date.now() - t0); if (ahead > 20) await new Promise((r) => setTimeout(r, Math.min(ahead, 1000))); }
     }
   } catch (e) {
     out.destroy();
